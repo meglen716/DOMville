@@ -1,0 +1,541 @@
+/* Reset and Canvas Setup */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    user-select: none;
+}
+
+body {
+    margin: 0;
+    overflow: hidden; /* Prevents scrollbars */
+    background-color: #2B5E8A;
+}
+
+canvas {
+    display: block;
+}
+
+/* ==========================================
+   DOMVILLE LOADING SCREEN & CSS ART
+   ========================================== */
+#loading-screen {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: linear-gradient(to bottom, #1a252c, #2B5E8A);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999; /* Keeps it on top of everything */
+    transition: opacity 0.8s ease, visibility 0.8s ease;
+}
+
+/* The CSS Canvas */
+.css-city {
+    display: flex;
+    align-items: flex-end;
+    height: 120px;
+    width: 260px;
+    margin-bottom: 20px;
+    border-bottom: 4px solid #404040; /* The Road */
+    position: relative;
+    overflow: hidden;
+}
+
+/* Base Building Styles */
+.css-building {
+    width: 40px;
+    margin: 0 10px;
+    background-color: #34495e;
+    box-shadow: inset -8px 0 0 rgba(0,0,0,0.2); /* 3D Shadow effect */
+    position: relative;
+}
+
+/* Clever Window Art using Repeating Gradients */
+.b1 { height: 70px; }
+.b2 { 
+    height: 110px; 
+    /* Draws glowing yellow windows */
+    background-image: 
+        repeating-linear-gradient(transparent, transparent 10px, #f1c40f 10px, #f1c40f 15px),
+        repeating-linear-gradient(90deg, transparent, transparent 10px, #f1c40f 10px, #f1c40f 15px);
+    background-size: 20px 25px;
+    background-color: #2c3e50;
+}
+.b3 { height: 50px; background-color: #7f8c8d; }
+.b4 { height: 90px; }
+
+/* The Animated CSS Car */
+.css-car {
+    position: absolute;
+    bottom: 4px;
+    width: 16px;
+    height: 8px;
+    background: #e74c3c;
+    border-radius: 3px 4px 1px 1px;
+    box-shadow: 18px 0 0 #f1c40f; /* Headlights made of box-shadow! */
+    animation: drive 3.5s linear infinite;
+}
+
+@keyframes drive {
+    0% { left: -40px; }
+    100% { left: 300px; }
+}
+
+/* Typography & Button */
+.game-title {
+    font-family: 'Courier New', Courier, monospace; /* Fits the DOM/Code theme */
+    font-size: 4rem;
+    color: #ecf0f1;
+    margin: 0;
+    text-shadow: 0 4px 6px rgba(0,0,0,0.5);
+    letter-spacing: -2px;
+}
+
+.game-subtitle {
+    color: #bdc3c7;
+    font-family: sans-serif;
+    margin-bottom: 40px;
+    letter-spacing: 1px;
+}
+
+#start-game-btn {
+    padding: 15px 40px;
+    font-size: 1.2rem;
+    background: #2ecc71;
+    color: white;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    font-family: sans-serif;
+    font-weight: bold;
+    box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+    transition: transform 0.2s, background 0.2s;
+}
+
+#start-game-btn:hover {
+    background: #27ae60;
+    transform: scale(1.05);
+}
+
+/* --- TOP RIGHT CONTROLS (Save, Load, Demolish) --- */
+#top-controls {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 10px;
+    z-index: 100;
+}
+
+.action-btn, .tool-btn {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(44, 62, 80, 0.9);
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+.action-btn:hover, .tool-btn:hover {
+    background: rgba(52, 73, 94, 1);
+    transform: translateY(-2px);
+}
+
+/* Demolish Toggle */
+.demolish-container {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(44, 62, 80, 0.9);
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: none;
+    margin-left: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 22px;
+}
+
+.switch input { 
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #555;
+    transition: .3s;
+}
+
+.slider.round {
+    border-radius: 22px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s;
+}
+
+input:checked + .slider {
+    background-color: #e74c3c; /* Red danger color */
+    box-shadow: 0 0 8px #e74c3c;
+}
+
+input:checked + .slider:before {
+    transform: translateX(22px);
+}
+
+/* --- BOTTOM CATEGORY DOCK --- */
+#bottom-dock {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 15px;
+    background: rgba(26, 37, 47, 0.85);
+    padding: 12px 20px;
+    border-radius: 12px;
+    z-index: 100;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+}
+
+.category-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #bdc3c7;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.category-btn:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.category-btn.active-category {
+    background: #3498db;
+    color: white;
+    box-shadow: 0 4px 8px rgba(52, 152, 219, 0.4);
+}
+
+/* --- POP-UP TOOL PANELS --- */
+#ui-panels {
+    position: fixed;
+    bottom: 85px; /* Sits right above the bottom dock */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 99;
+    pointer-events: none; /* Clicks pass through when hidden */
+}
+
+.tool-panel {
+    display: flex;
+    gap: 10px;
+    background: rgba(44, 62, 80, 0.95);
+    padding: 12px;
+    border-radius: 8px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    translate: -50% 0; /* Perfectly centers the absolute panel */
+    white-space: nowrap; /* Keeps buttons in a single row */
+}
+
+/* Show the active panel */
+.tool-panel.active-panel {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto; /* Re-enable clicks for the active panel */
+}
+
+/* Default Tool Active State */
+.tool-btn.active {
+    background: #2ecc71;
+    color: white;
+    box-shadow: 0 0 8px rgba(46, 204, 113, 0.5);
+}
+
+/* Specific Tool Active Colors (Optional Polish) */
+.tool-btn.active[data-tool="roundabout"] { background: #16a085; }
+.tool-btn.active[data-tool="fireStation"] { background: #d35400; }
+.tool-btn.active[data-tool="powerPlant"] { background: #f39c12; }
+.tool-btn.active[data-tool="waterPump"] { background: #2980b9; }
+.tool-btn.active[data-tool="park"] { background: #27ae60; }
+
+/* --- DYNAMIC TOOLTIPS --- */
+.tool-btn {
+    position: relative; /* Anchors the tooltip to the button */
+}
+
+/* The hidden tooltip box */
+.tool-btn::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 120%; /* Pushes it above the button */
+    left: 50%;
+    transform: translateX(-50%) translateY(5px);
+    background: rgba(15, 25, 40, 0.95);
+    color: #ecf0f1;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: normal;
+    white-space: nowrap; /* Keeps text on one line */
+    pointer-events: none; /* Prevents the tooltip from blocking clicks */
+    opacity: 0;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.1);
+    z-index: 1000;
+}
+
+/* Show tooltip on hover */
+.tool-btn:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Hide tooltip if the button is currently active (less clutter while building) */
+.tool-btn.active::after {
+    display: none; 
+}
+
+/* --- CITY HALL TAX SLIDER --- */
+.tax-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: 15px;
+    background: rgba(15, 25, 40, 0.85);
+    padding: 6px 15px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.tax-controls input[type=range] {
+    accent-color: #f1c40f; /* Makes the slider track gold */
+    cursor: pointer;
+}
+
+/* --- INFO PANEL --- */
+.info-panel {
+    position: absolute;
+    top: 80px; /* Sits just below the top controls */
+    right: 20px;
+    width: 220px;
+    background: rgba(15, 25, 40, 0.95);
+    color: #ecf0f1;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.6);
+    z-index: 1000;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.info-panel.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-10px);
+}
+
+.info-panel h3 {
+    margin: 0 0 10px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 16px;
+    color: #f1c40f;
+}
+
+#close-info {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    padding: 2px 6px;
+}
+
+#close-info:hover { background: #c0392b; }
+.info-stat { margin: 6px 0; font-size: 13px; font-family: monospace; }
+.info-stat.good { color: #2ecc71; }
+.info-stat.bad { color: #e74c3c; }
+
+/* --- CITY HUD --- */
+.city-hud {
+    position: absolute;
+    top: 20px;
+    left: 20px; /* Anchored to the left instead of 50% */
+    display: flex;
+    gap: 25px;
+    background: rgba(15, 25, 40, 0.95);
+    color: #ecf0f1;
+    padding: 12px 24px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.6);
+    z-index: 1000;
+    font-family: sans-serif;
+    font-size: 16px;
+    font-weight: bold;
+}
+.hud-item {
+    display: flex;
+    align-items: center;
+}
+.income-rate {
+    font-size: 14px;
+    margin-left: 8px;
+    font-family: monospace;
+}
+.income-rate.positive { color: #2ecc71; }
+.income-rate.negative { color: #e74c3c; }
+#hud-funds { 
+    margin-left: 5px; 
+    font-family: monospace; 
+    font-size: 18px; 
+    color: #f1c40f; 
+}
+
+/* --- ACTIVITY LOG STYLES --- */
+#activity-log-container {
+    position: absolute;
+    top: 70px; /* Adjust this if it overlaps your HUD */
+    left: 20px;
+    width: 280px;
+    background: rgba(15, 25, 40, 0.85);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: white;
+    font-family: sans-serif;
+    font-size: 13px;
+    z-index: 100;
+    pointer-events: auto;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+#activity-log-header {
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.2);
+}
+
+#toggle-log-btn {
+    background: none; border: none; color: white; cursor: pointer; font-size: 12px;
+}
+
+/* --- ACTIVITY LOG CONTENT --- */
+#activity-log-content {
+    height: 180px; /* Default starting height */
+    min-height: 50px; /* Prevents shrinking too much */
+    max-height: 60vh; /* Prevents stretching off screen */
+    resize: vertical; /* Allows vertical dragging */
+    overflow-y: scroll;
+}
+
+#activity-log-content.collapsed {
+    height: 0 !important;
+    min-height: 0;
+    padding: 0;
+    border-bottom: none;
+    resize: none; /* Cannot resize while collapsed */
+    overflow: scroll;
+}
+
+#activity-list {
+    list-style-type: none; padding: 0; margin: 0;
+}
+
+#activity-list li {
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+}
+
+/* --- CUSTOM MINIMALIST SCROLLBAR --- */
+#activity-log-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+#activity-log-content::-webkit-scrollbar-track {
+    background: rgba(15, 25, 40, 0.85); /* Matches panel background */
+}
+
+#activity-log-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15); /* Very subtle handlebar */
+    border-radius: 10px;
+}
+
+#activity-log-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.35); /* Brightens on hover */
+}
+
+/* Log Color Categories */
+.log-upgrade { color: #2ecc71; } /* Green */
+.log-emergency { color: #e74c3c; font-weight: bold; } /* Red */
+.log-info { color: #ecf0f1; } /* White */
+.log-time { color: #7f8c8d; font-size: 11px; margin-right: 6px; }
+
+/* --- SOUND TOGGLE STYLES --- */
+.sound-toggle-container {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    z-index: 100;
+    display: inline-flex;
+    align-items: center;
+    background: rgba(44, 62, 80, 0.9); /* Dark slate background */
+    padding: 8px 16px;
+    border-radius: 6px;                /* Smoother, slightly rounder edges */
+    border: none;                      /* Removed the white border */
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+/* Ensure the red from demolish doesn't override this toggle */
+.sound-toggle-container input:checked + .slider {
+    background-color: #2ecc71; /* Vibrant green */
+    box-shadow: 0 0 8px rgba(46, 204, 113, 0.6); /* Soft green glow */
+}

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOMville</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- DOMVILLE LOADING SCREEN -->
+<div id="loading-screen">
+    <div class="css-city">
+        <div class="css-building b1"></div>
+        <div class="css-building b2"></div>
+        <div class="css-building b3"></div>
+        <div class="css-building b4"></div>
+        <div class="css-car"></div>
+    </div>
+    
+    <h1 class="game-title">DOM<span style="color: #e74c3c;">ville</span>
+    </h1>
+    
+    <p class="game-subtitle">Mini City Builder</p>
+    
+    <button id="start-game-btn">Enter City</button>
+</div>
+
+<div id="top-controls">
+    <button class="action-btn" id="new-game-btn">New Game</button>
+    <!-- Demolish Toggle Switch -->
+    <div class="demolish-container" title="Toggle Demolish Mode">
+        <span style="font-size: 14px; font-weight: bold; color: #fff; margin-right: 8px;">Demolish</span>
+        <label class="switch">
+            <input type="checkbox" id="demolish-toggle">
+            <span class="slider round"></span>
+        </label>
+    </div>
+
+    <div class="tax-controls">
+        <label>🏛️ Tax Rate: <span id="tax-val-display">10%</span></label>
+        <input type="range" id="tax-slider" min="1" max="20" value="10">
+    </div>
+</div>
+
+<div id="city-hud" class="city-hud">
+    <div class="hud-item" title="Current Weather"><span id="hud-weather"></span></div>
+    <div class="hud-item" title="Total Population">👥 Pop: <span id="hud-pop">0</span></div>
+    <div class="hud-item" title="City Funds & Income">💰 $<span id="hud-funds">20,000</span> <span id="hud-income" class="income-rate">(+$0.0/s)</span></div>
+    <div class="hud-item" title="City Time">🕒 <span id="hud-time">08:00</span></div>
+</div>
+
+<div id="activity-log-container">
+        <div id="activity-log-header">
+            <span style="font-weight: bold;">Activity Log</span>
+            <button id="toggle-log-btn">▼</button>
+        </div>
+        <div id="activity-log-content">
+            <ul id="activity-list"></ul>
+        </div>
+    </div>
+
+<div id="info-panel" class="info-panel hidden">
+    <button id="close-info">X</button>
+    <h3 id="info-title">Building Info</h3>
+    <div id="info-content"></div>
+</div>
+
+<div id="bottom-dock">
+    <button class="category-btn" data-target="panel-zones">Build</button>
+    <button class="category-btn" data-target="panel-roads">Transport</button>
+    <button class="category-btn" data-target="panel-services">Services</button>
+    <button class="category-btn" data-target="panel-utilities">Utilities</button>
+</div>
+
+<div id="ui-panels">
+    <div class="tool-panel active-panel" id="panel-zones">
+        <button class="tool-btn active" data-tool="house">House</button>
+        <button class="tool-btn" data-tool="office">Office</button>
+        <button class="tool-btn" data-tool="supermarket">Supermarket</button>
+        <button class="tool-btn" data-tool="factory">Factory</button>
+        <button class="tool-btn" data-tool="farm">Farm</button>
+        <button class="tool-btn" data-tool="school">School</button>
+    </div>
+
+    <div class="tool-panel" id="panel-roads">
+        <button class="tool-btn" data-tool="road">Road</button>
+        <button class="tool-btn" data-tool="trafficLight">Traffic Light</button>
+        <button class="tool-btn" data-tool="roundabout">Roundabout</button>
+        <button class="tool-btn" data-tool="busStop">Bus Stop</button>
+        <button class="tool-btn" data-tool="trainStation">Train Station</button>
+        <button class="tool-btn" data-tool="trainTrack">Train Track</button>
+    </div>
+
+    <div class="tool-panel" id="panel-services">
+        <button class="tool-btn" data-tool="policeStation">Police Station</button>
+        <button class="tool-btn" data-tool="hospital">Hospital</button>
+        <button class="tool-btn" data-tool="fireStation">Fire Station</button>
+        <button class="tool-btn" data-tool="park">Park</button>
+    </div>
+
+    <div class="tool-panel" id="panel-utilities">
+        <button class="tool-btn" data-tool="powerPlant">Power Plant</button>
+        <button class="tool-btn" data-tool="waterPump">Water Pump</button>
+    </div>
+</div>
+    <canvas id="gameCanvas"></canvas>
+    <script src="terrain.js"></script>
+    <script src="population.js"></script>
+    <script src="economy.js"></script>
+    <script src="time.js"></script>
+    <script src="zoning.js"></script>
+    <script src="particles.js"></script>
+    <script src="roads.js"></script>
+    <script src="resources.js"></script>
+    <script src="weather.js"></script>
+    <script src="train.js"></script>
+    <script src="traffic.js"></script>
+    <script src="disasters.js"></script>
+    <script src="audio.js"></script>
+    <script src="game.js"></script>
+
+    <!-- Sound Toggle Switch (Bottom Right) -->
+    <div class="sound-toggle-container" title="Toggle Sound">
+        <span style="font-size: 14px; font-family: sans-serif; font-weight: bold; color: white; margin-right: 8px;">Sound</span>
+        <label class="switch">
+        <!-- Checked by default means sound is ON -->
+            <input type="checkbox" id="mute-toggle" checked>
+        <span class="slider round"></span>
+    </label>
+</div>
+</body>
+</html>
