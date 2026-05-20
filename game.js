@@ -40,6 +40,27 @@ const MAINTENANCE_COSTS = {
     factory: 100, farm: 30
 };
 
+// --- ECONOMY FUNCTIONS ---
+function spendFunds(amount) {
+    if (typeof cityFunds !== 'undefined') { cityFunds -= amount; }
+    else { window.cityFunds = (window.cityFunds || 20000) - amount; }
+    updateHUD(); 
+}
+
+function refund(type) {
+    const cost = BUILDING_COSTS[type] || 0;
+    if (cost > 0) {
+        const refundAmount = Math.floor(cost / 2); // 50% cash back
+        if (typeof cityFunds !== 'undefined') { cityFunds += refundAmount; }
+        else { window.cityFunds = (window.cityFunds || 20000) + refundAmount; }
+        
+        if (typeof logActivity === 'function') {
+            logActivity(`Refunded $${refundAmount} for demolished ${type}.`, "info");
+        }
+        updateHUD();
+    }
+}
+
 // --- ACTIVITY LOGGER ---
 function logActivity(message, type = 'info') {
     const list = document.getElementById('activity-list');
@@ -106,7 +127,7 @@ function getGridCoords(clientX, clientY) {
 function saveGame() {
     try {
         const terrainData = typeof terrainMap !== 'undefined' ? Array.from(terrainMap.entries()) : [];
-        const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : 20000;
+        const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : window.cityFunds;
         const saveData = { 
             terrain: terrainData, entities: entities, roads: roads, 
             trafficLights: trafficLights, roundabouts: roundabouts, 
@@ -142,7 +163,10 @@ function loadGame() {
 
             cars.length = 0; carIdCounter = 0;
             
-            if (saveData.funds !== undefined) { if (typeof cityFunds !== 'undefined') cityFunds = saveData.funds; else window.cityFunds = saveData.funds; }
+            if (saveData.funds !== undefined) { 
+                if (typeof cityFunds !== 'undefined') cityFunds = saveData.funds; 
+                else window.cityFunds = saveData.funds; 
+            }
             if (saveData.taxRate !== undefined) { currentTaxRate = saveData.taxRate; const slider = document.getElementById('tax-slider'); const display = document.getElementById('tax-val-display'); if (slider && display) { slider.value = currentTaxRate * 10; display.innerText = `${slider.value}%`; } }
             
             if (saveData.clock !== undefined && typeof gameClock !== 'undefined') gameClock = saveData.clock;
@@ -166,7 +190,6 @@ loadGame();
 
 document.getElementById('new-game-btn').addEventListener('click', () => { if (confirm("Are you sure you want to start a new city? All progress will be lost!")) { localStorage.removeItem('miniCitySave'); location.reload(); } });
 
-// --- KEYBOARD SHORTCUTS ---
 window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
@@ -183,7 +206,6 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-// Demolish Toggle Switch Logic
 const demToggle = document.getElementById('demolish-toggle');
 if (demToggle) {
     demToggle.addEventListener('change', (e) => {
@@ -196,13 +218,56 @@ if (demToggle) {
     });
 }
 
-// Tool Buttons Logic
+// --- SMART TOOLTIPS (FUNDS LOCKS ONLY) ---
+function updateTooltips() {
+    const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : (window.cityFunds || 0);
+
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+        const toolName = btn.dataset.tool; 
+        if (toolName === 'delete' || toolName === 'inspect') return;
+        
+        const cost = BUILDING_COSTS[toolName] || 0; 
+        
+        // Locked by Lack of Funds
+        if (currentFunds < cost) {
+            btn.classList.add('locked-tool');
+            btn.setAttribute('data-tooltip', `Not enough funds! ($${cost})`);
+            if (btn.classList.contains('active')) {
+                btn.classList.remove('active');
+                currentTool = null;
+            }
+            return;
+        }
+
+        // Unlocked and Affordable
+        btn.classList.remove('locked-tool');
+        const upkeep = MAINTENANCE_COSTS[toolName];
+        let tooltipText = `Cost: $${cost}`; 
+        if (upkeep) tooltipText += ` | Upkeep: $${upkeep}/mo`; 
+        
+        if (['house', 'office', 'supermarket', 'school', 'factory', 'farm'].includes(toolName)) {
+            let estIncome = 0;
+            if (toolName === 'house') estIncome = Math.floor(10 * currentTaxRate);
+            else if (toolName === 'office') estIncome = Math.floor(20 * currentTaxRate);
+            else if (toolName === 'supermarket') estIncome = Math.floor(15 * currentTaxRate);
+            else if (toolName === 'factory') estIncome = Math.floor(25 * currentTaxRate);
+            else if (toolName === 'farm') estIncome = Math.floor(10 * currentTaxRate);
+            
+            if (estIncome > 0) tooltipText += ` | Est. Yield: +$${estIncome}`;
+        }
+        
+        btn.setAttribute('data-tooltip', tooltipText); 
+    });
+}
+
+if (typeof updateHUD === 'function') updateHUD(); 
+updateTooltips();
+
 document.querySelectorAll('.tool-btn').forEach(btn => {
-    const toolName = btn.dataset.tool; const cost = BUILDING_COSTS[toolName]; const upkeep = MAINTENANCE_COSTS[toolName];
-    if (cost !== undefined) { let tooltipText = `Cost: $${cost}`; if (upkeep) tooltipText += ` | Upkeep: $${upkeep}/mo`; btn.setAttribute('data-tooltip', tooltipText); }
-    
     btn.addEventListener('click', (e) => {
         if (e.target.id === 'new-game-btn') return;
+        
+        if (btn.classList.contains('locked-tool')) return;
         
         if (demToggle && demToggle.checked) {
             demToggle.checked = false;
@@ -236,7 +301,14 @@ document.querySelectorAll('.category-btn').forEach(btn => {
 
 const firstCategory = document.querySelector('[data-target="panel-zones"]'); if (firstCategory) firstCategory.classList.add('active-category');
 const taxSlider = document.getElementById('tax-slider'); const taxValDisplay = document.getElementById('tax-val-display');
-if (taxSlider && taxValDisplay) { taxSlider.addEventListener('input', (e) => { currentTaxRate = e.target.value / 10; taxValDisplay.innerText = `${e.target.value}%`; }); }
+if (taxSlider && taxValDisplay) { 
+    taxSlider.addEventListener('input', (e) => { 
+        currentTaxRate = e.target.value / 10; 
+        taxValDisplay.innerText = `${e.target.value}%`; 
+        updateTooltips(); 
+    }); 
+}
+
 const closeInfoBtn = document.getElementById('close-info'); if (closeInfoBtn) { closeInfoBtn.addEventListener('click', () => { const panel = document.getElementById('info-panel'); if (panel) panel.classList.add('hidden'); selectedEntity = null; }); }
 
 function updateInfoPanel() {
@@ -246,11 +318,17 @@ function updateInfoPanel() {
     title.innerText = selectedEntity.type.toUpperCase();
     let html = '';
     
+    let yieldAmount = 0;
+    let upkeepAmount = MAINTENANCE_COSTS[selectedEntity.type] || 0;
+
     if (selectedEntity.type === 'house') {
         html += `<div class="info-stat">🏠 Level: ${selectedEntity.level || 1}</div>`;
         html += `<div class="info-stat">👥 Density: x${(selectedEntity.densityMult || 1.0).toFixed(1)}</div>`;
         html += `<div class="info-stat">💎 Value: ${selectedEntity.landValue ? Math.floor(selectedEntity.landValue) : 30}%</div>`;
         html += `<div class="info-stat">📈 Growth: ${selectedEntity.growth ? Math.floor(selectedEntity.growth) : 0} pts</div>`;
+        
+        yieldAmount = Math.floor((10 * (selectedEntity.level || 1) * (selectedEntity.densityMult || 1.0)) * currentTaxRate);
+        
     } else if (['office', 'supermarket', 'school', 'factory', 'farm'].includes(selectedEntity.type)) {
         const occ = typeof getOccupancy === 'function' ? getOccupancy(selectedEntity) : 0;
         const cap = typeof ZONE_PROPS !== 'undefined' && ZONE_PROPS[selectedEntity.type] ? ZONE_PROPS[selectedEntity.type].capacity : 10;
@@ -261,9 +339,22 @@ function updateInfoPanel() {
             const stockColor = stock > 50 ? '#2ecc71' : (stock > 20 ? '#f1c40f' : '#e74c3c');
             html += `<div class="info-stat">📦 Stock: <span style="color:${stockColor}; font-weight:bold;">${Math.floor(stock)}%</span></div>`;
         }
+
+        if (selectedEntity.type !== 'school') {
+            const multiplier = selectedEntity.type === 'factory' ? 2.5 : (selectedEntity.type === 'office' ? 2.0 : 1.5);
+            yieldAmount = Math.floor(occ * multiplier * currentTaxRate);
+        }
     }
 
     html += `<hr style="border-color:#444; margin: 10px 0;">`;
+    
+    if (yieldAmount > 0 && !selectedEntity.isAbandoned && !selectedEntity.isBurned) {
+        html += `<div class="info-stat">💰 Tax Yield: <span class="good" style="color:#2ecc71; font-weight:bold;">+$${yieldAmount}</span></div>`;
+    }
+    if (upkeepAmount > 0 && !selectedEntity.isBurned) {
+        html += `<div class="info-stat">💸 Upkeep: <span class="bad" style="color:#e74c3c; font-weight:bold;">-$${upkeepAmount}</span></div>`;
+    }
+
     html += `<div class="info-stat">⚡ Power: ${selectedEntity.hasPower === false ? '<span class="bad">NONE</span>' : '<span class="good">OK</span>'}</div>`;
     html += `<div class="info-stat">💧 Water: ${selectedEntity.hasWater === false ? '<span class="bad">NONE</span>' : '<span class="good">OK</span>'}</div>`;
     html += `<div class="info-stat">🛣️ Roads: ${selectedEntity.hasRoad === false ? '<span class="bad">NONE</span>' : '<span class="good">OK</span>'}</div>`;
@@ -274,7 +365,6 @@ function updateInfoPanel() {
     content.innerHTML = html;
 }
 
-// Helper to map weather status to emojis
 function getWeatherEmoji(status) {
     switch(status.toUpperCase()) {
         case 'CLEAR': return '☀️';
@@ -290,12 +380,14 @@ function updateHUD() {
     const popDisplay = document.getElementById('hud-pop'); const fundsDisplay = document.getElementById('hud-funds'); const incomeDisplay = document.getElementById('hud-income'); const timeDisplay = document.getElementById('hud-time'); const weatherDisplay = document.getElementById('hud-weather'); 
     if (!popDisplay) return;
 
+    const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : (window.cityFunds || 0);
+
     if (typeof collectTaxes === 'function') {
         const economyResult = collectTaxes(entities, currentTaxRate, MAINTENANCE_COSTS, busStops, trainStations);
         let incomePerSec = (economyResult.netIncome / 10).toFixed(1);
         
         popDisplay.innerText = economyResult.population; 
-        fundsDisplay.innerText = Math.floor(typeof cityFunds !== 'undefined' ? cityFunds : 0).toLocaleString();
+        fundsDisplay.innerText = Math.floor(currentFunds).toLocaleString();
         
         if (incomePerSec >= 0) { incomeDisplay.innerText = `(+$${incomePerSec}/s)`; incomeDisplay.className = 'income-rate positive'; } 
         else { incomeDisplay.innerText = `(-$${Math.abs(incomePerSec).toFixed(1)}/s)`; incomeDisplay.className = 'income-rate negative'; }
@@ -317,9 +409,11 @@ function updateHUD() {
             weatherDisplay.style.fontWeight = 'bold';
         } else { 
             weatherDisplay.style.color = '#ecf0f1'; 
-            weatherDisplay.style.fontWeight = 'bold';
+            weatherDisplay.style.fontWeight = 'normal';
         } 
     }
+
+    updateTooltips();
 }
 
 // ==========================================
@@ -334,36 +428,36 @@ function performDeletion(clientX, clientY) {
         const deletedEntity = entities.splice(entityIndex, 1)[0]; deletedSomething = true;
         if (selectedEntity === deletedEntity) { selectedEntity = null; const panel = document.getElementById('info-panel'); if (panel) panel.classList.add('hidden'); }
         if (typeof spawnDustParticles === 'function') { const dustColor = deletedEntity.color || (typeof ZONE_PROPS !== 'undefined' && ZONE_PROPS[deletedEntity.type] ? ZONE_PROPS[deletedEntity.type].color : '#bdc3c7'); spawnDustParticles(gridX, gridY, 25, dustColor, gridSize); }
-        if (typeof refund === 'function') refund(deletedEntity.type); 
+        refund(deletedEntity.type); 
         for (let i = cars.length - 1; i >= 0; i--) { if (cars[i].home === deletedEntity || cars[i].target === deletedEntity) cars.splice(i, 1); }
     }
 
     if (!deletedSomething) {
         const lightIndex = trafficLights.findIndex(l => l.x === gridX && l.y === gridY);
-        if (lightIndex > -1) { trafficLights.splice(lightIndex, 1); deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 10, '#f1c40f', gridSize); if (typeof refund === 'function') refund('trafficLight'); }
+        if (lightIndex > -1) { trafficLights.splice(lightIndex, 1); deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 10, '#f1c40f', gridSize); refund('trafficLight'); }
     }
     if (!deletedSomething) {
         const rbIndex = roundabouts.findIndex(r => r.x === gridX && r.y === gridY);
-        if (rbIndex > -1) { roundabouts.splice(rbIndex, 1); deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 15, '#7f8c8d', gridSize); if (typeof refund === 'function') refund('roundabout'); }
+        if (rbIndex > -1) { roundabouts.splice(rbIndex, 1); deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 15, '#7f8c8d', gridSize); refund('roundabout'); }
     }
     if (!deletedSomething) {
         const busStopIndex = busStops.findIndex(b => b.x === gridX && b.y === gridY);
-        if (busStopIndex > -1) { busStops.splice(busStopIndex, 1); deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 15, '#00d2d3', gridSize); if (typeof refund === 'function') refund('busStop'); for (let i = cars.length - 1; i >= 0; i--) { if (cars[i].type === 'bus') cars.splice(i, 1); } }
+        if (busStopIndex > -1) { busStops.splice(busStopIndex, 1); deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 15, '#00d2d3', gridSize); refund('busStop'); for (let i = cars.length - 1; i >= 0; i--) { if (cars[i].type === 'bus') cars.splice(i, 1); } }
     }
     if (!deletedSomething) {
         const stationIndex = trainStations.findIndex(s => s.x === gridX && s.y === gridY);
-        if (stationIndex > -1) { trainStations.splice(stationIndex, 1); deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 20, '#7f8c8d', gridSize); if (typeof refund === 'function') refund('trainStation'); }
+        if (stationIndex > -1) { trainStations.splice(stationIndex, 1); deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 20, '#7f8c8d', gridSize); refund('trainStation'); }
     }
     if (!deletedSomething) {
         for (let i = trainTracks.length - 1; i >= 0; i--) {
             const nodeIndex = trainTracks[i].findIndex(node => node.x === gridX && node.y === gridY);
-            if (nodeIndex > -1) { const deletedTrack = trainTracks.splice(i, 1)[0]; deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 20, '#5c4033', gridSize); if (typeof refund === 'function') { deletedTrack.forEach(node => refund('trainTrack')); } break; }
+            if (nodeIndex > -1) { const deletedTrack = trainTracks.splice(i, 1)[0]; deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 20, '#5c4033', gridSize); deletedTrack.forEach(node => refund('trainTrack')); break; }
         }
     }
     if (!deletedSomething) {
         for (let i = roads.length - 1; i >= 0; i--) {
             const nodeIndex = roads[i].findIndex(node => node.x === gridX && node.y === gridY);
-            if (nodeIndex > -1) { const deletedRoad = roads.splice(i, 1)[0]; deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 20, '#505050', gridSize); if (typeof refund === 'function') { deletedRoad.forEach(node => refund(node.type || 'road')); } break; }
+            if (nodeIndex > -1) { const deletedRoad = roads.splice(i, 1)[0]; deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 20, '#505050', gridSize); deletedRoad.forEach(node => refund(node.type || 'road')); break; }
         }
     }
     if (deletedSomething) {
@@ -424,62 +518,65 @@ canvas.addEventListener('mousedown', (e) => {
 
     if (!currentTool) return; 
 
+    const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : (window.cityFunds || 0);
+
     if (['road', 'bridge', 'tunnel'].includes(currentTool)) {
         if (terrainType === 'ocean') return; 
         
-        const alreadyExists = typeof isRoad === 'function' && isRoad(gridX, gridY);
+        const alreadyExists = isRoad(gridX, gridY);
         let dynamicType = 'road'; if (terrainType === 'water') dynamicType = 'bridge'; if (terrainType === 'mountain') dynamicType = 'tunnel';
         let cost = alreadyExists ? 0 : (BUILDING_COSTS[dynamicType] || 10);
         
-        if (typeof cityFunds !== 'undefined' && cityFunds >= cost) { isDrawingRoad = true; currentRoadPath = [{ x: gridX, y: gridY, type: dynamicType }]; if (typeof spendFunds === 'function' && cost > 0) spendFunds(cost); }
+        if (currentFunds >= cost) { isDrawingRoad = true; currentRoadPath = [{ x: gridX, y: gridY, type: dynamicType }]; if (cost > 0) spendFunds(cost); }
     } else if (currentTool === 'trainTrack') {
         if (terrainType === 'ocean') return; 
         
         const alreadyExists = trainTracks.some(path => path.some(n => n.x === gridX && n.y === gridY));
         let cost = alreadyExists ? 0 : BUILDING_COSTS['trainTrack'];
         
-        if (typeof cityFunds !== 'undefined' && cityFunds >= cost) { isDrawingTrack = true; currentTrackPath = [{ x: gridX, y: gridY }]; if (typeof spendFunds === 'function' && cost > 0) spendFunds(cost); }
+        if (currentFunds >= cost) { isDrawingTrack = true; currentTrackPath = [{ x: gridX, y: gridY }]; if (cost > 0) spendFunds(cost); }
     } else if (currentTool === 'trainStation') {
-        if (terrainType !== null) return; if (typeof isRoad === 'function' && isRoad(gridX, gridY)) return; 
+        if (terrainType !== null) return; if (isRoad(gridX, gridY)) return; 
         if (!trainStations.some(s => s.x === gridX && s.y === gridY)) {
             if (typeof canBuildStation === 'function' && !canBuildStation(gridX, gridY, trainStations)) { alert("Train stations must be built further apart to be efficient!"); return; }
-            let cost = BUILDING_COSTS['trainStation']; if (typeof cityFunds !== 'undefined' && cityFunds >= cost) { trainStations.push({ x: gridX, y: gridY }); if (typeof spendFunds === 'function') spendFunds(cost); }
+            let cost = BUILDING_COSTS['trainStation']; if (currentFunds >= cost) { trainStations.push({ x: gridX, y: gridY }); spendFunds(cost); }
         }
     } else if (currentTool === 'waterPump') {
-        if (terrainType !== null) return; if (typeof isRoad === 'function' && isRoad(gridX, gridY)) return; 
+        if (terrainType !== null) return; if (isRoad(gridX, gridY)) return; 
         if (typeof isNearWater === 'function' && !isNearWater(gridX, gridY, gridSize)) { alert("Water Pumps must be built directly adjacent to a body of water or ocean!"); return; }
-        let cost = BUILDING_COSTS['waterPump'] || 1500; if (typeof cityFunds !== 'undefined' && cityFunds >= cost) { entities.push({ type: 'waterPump', x: gridX, y: gridY }); if (typeof spendFunds === 'function') spendFunds(cost); }
+        let cost = BUILDING_COSTS['waterPump'] || 1500; if (currentFunds >= cost) { entities.push({ type: 'waterPump', x: gridX, y: gridY }); spendFunds(cost); }
     } else if (currentTool === 'trafficLight') {
-        if (typeof isRoad === 'function' && isRoad(gridX, gridY) && !trafficLights.some(l => l.x === gridX && l.y === gridY)) {
-            if (!roundabouts.some(r => r.x === gridX && r.y === gridY)) { let cost = BUILDING_COSTS['trafficLight'] || 100; if (typeof cityFunds !== 'undefined' && cityFunds >= cost) { trafficLights.push({ x: gridX, y: gridY, state: 'H_G', timer: 0 }); if (typeof spendFunds === 'function') spendFunds(cost); } }
+        if (isRoad(gridX, gridY) && !trafficLights.some(l => l.x === gridX && l.y === gridY)) {
+            if (!roundabouts.some(r => r.x === gridX && r.y === gridY)) { let cost = BUILDING_COSTS['trafficLight'] || 100; if (currentFunds >= cost) { trafficLights.push({ x: gridX, y: gridY, state: 'H_G', timer: 0 }); spendFunds(cost); } }
         }
     } else if (currentTool === 'roundabout') { 
-        if (typeof isRoad === 'function' && isRoad(gridX, gridY) && !roundabouts.some(r => r.x === gridX && r.y === gridY)) {
+        if (isRoad(gridX, gridY) && !roundabouts.some(r => r.x === gridX && r.y === gridY)) {
             let cost = BUILDING_COSTS['roundabout'] || 300;
-            if (typeof cityFunds !== 'undefined' && cityFunds >= cost) {
+            if (currentFunds >= cost) {
                 const tlIndex = trafficLights.findIndex(l => l.x === gridX && l.y === gridY); if (tlIndex > -1) { trafficLights.splice(tlIndex, 1); if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 10, '#f1c40f', gridSize); }
-                roundabouts.push({ x: gridX, y: gridY }); if (typeof spendFunds === 'function') spendFunds(cost);
+                roundabouts.push({ x: gridX, y: gridY }); spendFunds(cost);
             }
         }
     } else if (currentTool === 'busStop') {
-        if (typeof isRoad === 'function' && isRoad(gridX, gridY) && !busStops.some(b => b.x === gridX && b.y === gridY)) { let cost = BUILDING_COSTS['busStop'] || 200; if (typeof cityFunds !== 'undefined' && cityFunds >= cost) { busStops.push({ x: gridX, y: gridY }); if (typeof spendFunds === 'function') spendFunds(cost); } }
+        if (isRoad(gridX, gridY) && !busStops.some(b => b.x === gridX && b.y === gridY)) { let cost = BUILDING_COSTS['busStop'] || 200; if (currentFunds >= cost) { busStops.push({ x: gridX, y: gridY }); spendFunds(cost); } }
     } else if (currentTool === 'farm') {
-        if (terrainType !== null) return; if (typeof isRoad === 'function' && isRoad(gridX, gridY)) return; 
+        if (terrainType !== null) return; if (isRoad(gridX, gridY)) return; 
         if (typeof isNearWater === 'function' && !isNearWater(gridX, gridY, gridSize)) { alert("Farms require irrigation! Build them next to a water tile."); return; }
-        let cost = BUILDING_COSTS['farm']; if (typeof cityFunds !== 'undefined' && cityFunds >= cost) { entities.push({ type: 'farm', x: gridX, y: gridY }); if (typeof spendFunds === 'function') spendFunds(cost); }
+        let cost = BUILDING_COSTS['farm']; if (currentFunds >= cost) { entities.push({ type: 'farm', x: gridX, y: gridY }); spendFunds(cost); }
     } else {
-        if (terrainType !== null) return; if (typeof isRoad === 'function' && isRoad(gridX, gridY)) return; 
+        if (terrainType !== null) return; if (isRoad(gridX, gridY)) return; 
         let cost = BUILDING_COSTS[currentTool] || 100;
-        if (typeof cityFunds !== 'undefined' && cityFunds >= cost) {
+        if (currentFunds >= cost) {
             const newEntity = { type: currentTool, x: gridX, y: gridY, color: currentTool === 'house' ? '#FF6B6B' : null };
             if (currentTool === 'house') { newEntity.level = 1; newEntity.growth = 0; }
-            entities.push(newEntity); if (typeof spendFunds === 'function') spendFunds(cost);
+            entities.push(newEntity); spendFunds(cost);
         }
     }
 });
 
 canvas.addEventListener('mousemove', (e) => {
     if (isPanning) { camera.x = e.clientX - startPan.x; camera.y = e.clientY - startPan.y; clampCamera(); return; }
+    const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : (window.cityFunds || 0);
     
     if (isDrawingRoad && ['road', 'bridge', 'tunnel'].includes(currentTool)) {
         const { gridX, gridY } = getGridCoords(e.clientX, e.clientY);
@@ -490,11 +587,11 @@ canvas.addEventListener('mousemove', (e) => {
 
             const terrainType = typeof getTerrainAt === 'function' ? getTerrainAt(gridX, gridY) : null; if (terrainType === 'ocean') return;
             
-            const alreadyExists = typeof isRoad === 'function' && isRoad(gridX, gridY);
+            const alreadyExists = isRoad(gridX, gridY);
             let dynamicType = 'road'; if (terrainType === 'water') dynamicType = 'bridge'; if (terrainType === 'mountain') dynamicType = 'tunnel';
             let cost = alreadyExists ? 0 : (BUILDING_COSTS[dynamicType] || 10);
             
-            if (typeof cityFunds !== 'undefined' && cityFunds >= cost) { currentRoadPath.push({ x: gridX, y: gridY, type: dynamicType }); if (typeof spendFunds === 'function' && cost > 0) spendFunds(cost); }
+            if (currentFunds >= cost) { currentRoadPath.push({ x: gridX, y: gridY, type: dynamicType }); if (cost > 0) spendFunds(cost); }
         }
     }
     if (isDrawingTrack && currentTool === 'trainTrack') {
@@ -509,7 +606,7 @@ canvas.addEventListener('mousemove', (e) => {
             const alreadyExists = trainTracks.some(path => path.some(n => n.x === gridX && n.y === gridY));
             let cost = alreadyExists ? 0 : BUILDING_COSTS['trainTrack']; 
             
-            if (typeof cityFunds !== 'undefined' && cityFunds >= cost) { currentTrackPath.push({ x: gridX, y: gridY }); if (typeof spendFunds === 'function' && cost > 0) spendFunds(cost); }
+            if (currentFunds >= cost) { currentTrackPath.push({ x: gridX, y: gridY }); if (cost > 0) spendFunds(cost); }
         }
     }
     if (isDeleting && currentTool === 'delete') performDeletion(e.clientX, e.clientY);
@@ -564,7 +661,6 @@ function drawMinimap(ctx) {
     ctx.strokeRect(clampedX, clampedY, clampedW, clampedH);
     ctx.restore();
 
-    // --- NEW: Subtle Control Instructions ---
     ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; 
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'left';
@@ -653,8 +749,8 @@ function gameLoop() {
     if (taxTimer % 300 === 0) { saveGame(); }
 
     entities.forEach(ent => {
-        if (ent.driveway && (typeof isRoad !== 'function' || !isRoad(ent.driveway.x, ent.driveway.y))) { ent.driveway = null; ent.hasRoad = false; }
-        if (!ent.driveway && typeof isRoad === 'function') {
+        if (ent.driveway && (!isRoad(ent.driveway.x, ent.driveway.y))) { ent.driveway = null; ent.hasRoad = false; }
+        if (!ent.driveway) {
             const dirs = [{dx:0, dy:-gridSize}, {dx:gridSize, dy:0}, {dx:0, dy:gridSize}, {dx:-gridSize, dy:0}];
             for(let d of dirs) { if(isRoad(ent.x + d.dx, ent.y + d.dy)) { ent.driveway = {x: ent.x + d.dx, y: ent.y + d.dy}; ent.hasRoad = true; break; } }
         }
@@ -723,7 +819,8 @@ function gameLoop() {
     if (taxTimer >= TAX_INTERVAL) {
         if (typeof collectTaxes === 'function') {
             const economyResult = collectTaxes(entities, currentTaxRate, MAINTENANCE_COSTS, busStops, trainStations);
-            if (typeof cityFunds !== 'undefined') cityFunds += economyResult.netIncome; 
+            if (typeof cityFunds !== 'undefined') { cityFunds += economyResult.netIncome; }
+            else { window.cityFunds = (window.cityFunds || 20000) + economyResult.netIncome; }
             if (typeof processTaxes === 'function') processTaxes(economyResult.population); 
         }
         taxTimer = 0;
@@ -731,7 +828,7 @@ function gameLoop() {
 
     drawMinimap(ctx);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; ctx.font = '12px sans-serif'; ctx.fillText('© Meglen 2026', canvas.width - 100, canvas.height - 5);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.font = '12px sans-serif'; ctx.fillText('© Meglen 2026', canvas.width - 100, canvas.height - 5);
     requestAnimationFrame(gameLoop);
 }
 
