@@ -669,34 +669,59 @@ function drawMinimap(ctx) {
 }
 
 function drawAllRoadsAndBridges() {
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    const allRoadPaths = [...roads]; if (isDrawingRoad && currentRoadPath.length > 0) { allRoadPaths.push(currentRoadPath); }
+    ctx.lineCap = 'round'; 
+    ctx.lineJoin = 'round';
+    
+    const allRoadPaths = [...roads]; 
+    if (isDrawingRoad && currentRoadPath.length > 0) { 
+        allRoadPaths.push(currentRoadPath); 
+    }
 
-    ctx.strokeStyle = '#404040'; ctx.lineWidth = gridSize - 4; ctx.beginPath();
+    // 1. Draw the asphalt bases with color-coded types
+    allRoadPaths.forEach(path => {
+        if (!path || path.length === 0) return;
+
+        // Determine color based on type
+        let roadColor = '#404040'; // Default road
+        if (path[0].type === 'bridge') roadColor = '#5d6d7e';
+        if (path[0].type === 'tunnel') roadColor = '#212f3d';
+
+        ctx.strokeStyle = roadColor;
+        ctx.lineWidth = gridSize - 4;
+        ctx.beginPath();
+        ctx.moveTo(path[0].x + gridSize / 2, path[0].y + gridSize / 2);
+        for (let i = 1; i < path.length; i++) { 
+            ctx.lineTo(path[i].x + gridSize / 2, path[i].y + gridSize / 2); 
+        }
+        ctx.stroke();
+    });
+
+    // 2. Add the dashed centerlines for all types
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'; 
+    ctx.lineWidth = 2; 
+    ctx.setLineDash([8, 12]); 
+    ctx.beginPath();
+    
     allRoadPaths.forEach(path => {
         if (!path || path.length === 0) return;
         ctx.moveTo(path[0].x + gridSize / 2, path[0].y + gridSize / 2);
-        for (let i = 1; i < path.length; i++) { ctx.lineTo(path[i].x + gridSize / 2, path[i].y + gridSize / 2); }
-        if (path.length === 1) ctx.lineTo(path[0].x + gridSize / 2 + 1, path[0].y + gridSize / 2);
+        for (let i = 1; i < path.length; i++) { 
+            ctx.lineTo(path[i].x + gridSize / 2, path[i].y + gridSize / 2); 
+        }
     });
-
+    
+    // Connect segments to neighboring nodes
     allRoadPaths.forEach(path => {
         path.forEach(node => {
             const nx = node.x; const ny = node.y;
-            if (isRoad(nx + gridSize, ny)) { ctx.moveTo(nx + gridSize / 2, ny + gridSize / 2); ctx.lineTo(nx + gridSize + gridSize / 2, ny + gridSize / 2); }
-            if (isRoad(nx, ny + gridSize)) { ctx.moveTo(nx + gridSize / 2, ny + gridSize / 2); ctx.lineTo(nx + gridSize / 2, ny + gridSize + gridSize / 2); }
+            const cx = nx + gridSize / 2; const cy = ny + gridSize / 2;
+            if (isRoad(nx + gridSize, ny)) { ctx.moveTo(cx, cy); ctx.lineTo(cx + gridSize / 2, cy); }
+            if (isRoad(nx, ny + gridSize)) { ctx.moveTo(cx, cy); ctx.lineTo(cx, cy + gridSize / 2); }
         });
     });
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'; ctx.lineWidth = 2; ctx.setLineDash([8, 12]); ctx.beginPath();
-    allRoadPaths.forEach(path => {
-        if (!path || path.length === 0) return;
-        ctx.moveTo(path[0].x + gridSize / 2, path[0].y + gridSize / 2);
-        for (let i = 1; i < path.length; i++) { ctx.lineTo(path[i].x + gridSize / 2, path[i].y + gridSize / 2); }
-        if (path.length === 1) ctx.lineTo(path[0].x + gridSize / 2 + 1, path[0].y + gridSize / 2);
-    });
-    ctx.stroke(); ctx.setLineDash([]); 
+    
+    ctx.stroke(); 
+    ctx.setLineDash([]); 
 }
 
 // ==========================================
@@ -831,5 +856,79 @@ function gameLoop() {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.font = '12px sans-serif'; ctx.fillText('© Meglen 2026', canvas.width - 100, canvas.height - 5);
     requestAnimationFrame(gameLoop);
 }
+
+// ==========================================
+// IMPORT & EXPORT SYSTEM
+// ==========================================
+window.addEventListener('DOMContentLoaded', () => {
+    const saveModal = document.getElementById('save-modal');
+    const saveTextarea = document.getElementById('save-textarea');
+    const saveActionBtn = document.getElementById('save-action-btn');
+    const saveCloseBtn = document.getElementById('save-close-btn');
+    const saveModalTitle = document.getElementById('save-modal-title');
+
+    const exportBtn = document.getElementById('export-game-btn');
+    const importBtn = document.getElementById('import-game-btn');
+
+    // EXPORT Logic
+    if (exportBtn && saveModal) {
+        exportBtn.addEventListener('click', () => {
+            if (typeof saveGame === 'function') saveGame(); 
+            const savedData = localStorage.getItem('miniCitySave');
+            
+            if (savedData) {
+                const encodedData = btoa(encodeURIComponent(savedData));
+                
+                saveModalTitle.innerText = "Export Game Data";
+                saveTextarea.value = encodedData;
+                saveTextarea.readOnly = true;
+                
+                saveActionBtn.innerText = "Copy to Clipboard";
+                saveActionBtn.onclick = () => {
+                    navigator.clipboard.writeText(encodedData);
+                    saveActionBtn.innerText = "Copied!";
+                };
+                
+                saveModal.style.display = "flex";
+            } else {
+                alert("No save data found to export.");
+            }
+        });
+    }
+
+    // IMPORT Logic
+    if (importBtn && saveModal) {
+        importBtn.addEventListener('click', () => {
+            saveModalTitle.innerText = "Import Game Data";
+            saveTextarea.value = "";
+            saveTextarea.readOnly = false;
+            
+            saveActionBtn.innerText = "Load Game";
+            saveActionBtn.onclick = () => {
+                const inputData = saveTextarea.value.trim();
+                if (!inputData) return;
+                
+                try {
+                    const decodedData = decodeURIComponent(atob(inputData));
+                    JSON.parse(decodedData); // Validates the JSON
+                    
+                    localStorage.setItem('miniCitySave', decodedData);
+                    location.reload();
+                } catch (error) {
+                    alert("Invalid or corrupted save string.");
+                }
+            };
+            
+            saveModal.style.display = "flex";
+        });
+    }
+
+    // Close Modal Logic
+    if (saveCloseBtn && saveModal) {
+        saveCloseBtn.addEventListener('click', () => {
+            saveModal.style.display = "none";
+        });
+    }
+});
 
 gameLoop();

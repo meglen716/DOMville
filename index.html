@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MEGville</title>
+    <title>DOMville</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,7 +17,7 @@
         <div class="css-car"></div>
     </div>
     
-    <h1 class="game-title">MEG<span style="color: #e74c3c;">ville</span>
+    <h1 class="game-title">DOM<span style="color: #e74c3c;">ville</span>
     </h1>
     
     <p class="game-subtitle">Mini City Builder</p>
@@ -27,6 +27,8 @@
 
 <div id="top-controls">
     <button class="action-btn" id="new-game-btn">New Game</button>
+    <button class="action-btn" id="export-game-btn">Export</button>
+    <button class="action-btn" id="import-game-btn">Import</button>
     <!-- Demolish Toggle Switch -->
     <div class="demolish-container" title="Toggle Demolish Mode">
         <span style="font-size: 14px; font-weight: bold; color: #fff; margin-right: 8px;">Demolish</span>
@@ -126,7 +128,20 @@
         <!-- Checked by default means sound is ON -->
             <input type="checkbox" id="mute-toggle" checked>
         <span class="slider round"></span>
-    </label>
+        </label>
+    </div>
+
+<!-- Save Data Modal -->
+<div id="save-modal" class="modal-overlay">
+    <div class="modal-content">
+        <h2 id="save-modal-title">Save Data</h2>
+        <textarea id="save-textarea" placeholder="Paste your save string here..." spellcheck="false"></textarea>
+        <div class="modal-buttons">
+            <button id="save-action-btn">Action</button>
+            <button id="save-close-btn">Close</button>
+        </div>
+    </div>
 </div>
+
 </body>
 </html>
