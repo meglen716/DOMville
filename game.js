@@ -668,62 +668,6 @@ function drawMinimap(ctx) {
     ctx.fillText('Middle/Right-Drag: Pan Camera  •  Scroll: Zoom', mapX, mapY + minimapSize + 28);
 }
 
-function drawAllRoadsAndBridges() {
-    ctx.lineCap = 'round'; 
-    ctx.lineJoin = 'round';
-    
-    const allRoadPaths = [...roads]; 
-    if (isDrawingRoad && currentRoadPath.length > 0) { 
-        allRoadPaths.push(currentRoadPath); 
-    }
-
-    // 1. Draw the asphalt bases with color-coded types
-    allRoadPaths.forEach(path => {
-        if (!path || path.length === 0) return;
-
-        // Determine color based on type
-        let roadColor = '#404040'; // Default road
-        if (path[0].type === 'bridge') roadColor = '#5d6d7e';
-        if (path[0].type === 'tunnel') roadColor = '#212f3d';
-
-        ctx.strokeStyle = roadColor;
-        ctx.lineWidth = gridSize - 4;
-        ctx.beginPath();
-        ctx.moveTo(path[0].x + gridSize / 2, path[0].y + gridSize / 2);
-        for (let i = 1; i < path.length; i++) { 
-            ctx.lineTo(path[i].x + gridSize / 2, path[i].y + gridSize / 2); 
-        }
-        ctx.stroke();
-    });
-
-    // 2. Add the dashed centerlines for all types
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'; 
-    ctx.lineWidth = 2; 
-    ctx.setLineDash([8, 12]); 
-    ctx.beginPath();
-    
-    allRoadPaths.forEach(path => {
-        if (!path || path.length === 0) return;
-        ctx.moveTo(path[0].x + gridSize / 2, path[0].y + gridSize / 2);
-        for (let i = 1; i < path.length; i++) { 
-            ctx.lineTo(path[i].x + gridSize / 2, path[i].y + gridSize / 2); 
-        }
-    });
-    
-    // Connect segments to neighboring nodes
-    allRoadPaths.forEach(path => {
-        path.forEach(node => {
-            const nx = node.x; const ny = node.y;
-            const cx = nx + gridSize / 2; const cy = ny + gridSize / 2;
-            if (isRoad(nx + gridSize, ny)) { ctx.moveTo(cx, cy); ctx.lineTo(cx + gridSize / 2, cy); }
-            if (isRoad(nx, ny + gridSize)) { ctx.moveTo(cx, cy); ctx.lineTo(cx, cy + gridSize / 2); }
-        });
-    });
-    
-    ctx.stroke(); 
-    ctx.setLineDash([]); 
-}
-
 // ==========================================
 // 6. MAIN GAME LOOP
 // ==========================================

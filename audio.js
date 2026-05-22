@@ -117,3 +117,5 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+window.unlockAudio = unlockAudioAndStart;

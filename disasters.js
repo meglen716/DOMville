@@ -1,11 +1,15 @@
-// --- FIRE & PLAGUE CONSTANTS (Nerfed version) ---
-const FIRE_CHANCE_BASE = 0.000005;   
-const FIRE_GROWTH_TICK = 1200;       
-const FIRE_BURN_DOWN_TICK = 2400;   
-const SPREAD_CHANCE = 0.001;         
+// ==========================================
+// DISASTERS & EMERGENCIES SYSTEM
+// ==========================================
 
-const PLAGUE_INCUBATION_TICK = 4800; 
-const PLAGUE_SPREAD_CHANCE = 0.01;   
+// --- FIRE & PLAGUE CONSTANTS (Nerfed for better gameplay) ---
+const FIRE_CHANCE_BASE = 0.000005;   // Was 0.00002 (4x less frequent)
+const FIRE_GROWTH_TICK = 1200;       // Fires grow much slower
+const FIRE_BURN_DOWN_TICK = 2400;   
+const SPREAD_CHANCE = 0.001;         // Spreads 3x less often
+
+const PLAGUE_INCUBATION_TICK = 4800; // Takes longer to incubate
+const PLAGUE_SPREAD_CHANCE = 0.01;   // Spreads 3x less often
 
 let disasterTimer = 0;
 const tornadoes = []; 
@@ -13,12 +17,12 @@ const tornadoes = [];
 // Earthquake Variables
 let earthquakeTimer = 0; 
 let earthquakeMagnitude = 0;
-const EARTHQUAKE_CHANCE = 0.000001; // Extremely rare (halos wala na)
+const EARTHQUAKE_CHANCE = 0.000001; // Extremely rare (5x less frequent)
 
 // Riot Variables
 let highTaxTimer = 0;
 let isRioting = false;
-const RIOT_THRESHOLD = 2700; 
+const RIOT_THRESHOLD = 2700; // Players have more time to fix high taxes
 
 function getEarthquakeOffset() {
     if (earthquakeTimer > 0) return { x: (Math.random() - 0.5) * earthquakeMagnitude, y: (Math.random() - 0.5) * earthquakeMagnitude };
