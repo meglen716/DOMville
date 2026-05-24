@@ -1,8 +1,8 @@
-// ==========================================
-// LRT / TRAIN SYSTEM LOGIC & RENDERING
-// ==========================================
 
-const MIN_STATION_DIST = 400; // 10 grid blocks
+
+
+
+const MIN_STATION_DIST = 400; 
 const TRAIN_SPEED = 0.08; 
 const activeTrains = [];
 
@@ -22,7 +22,7 @@ function manageTrains(tracks, stations) {
                     id: Math.random(),
                     lineIndex: index,
                     pathIndex: 0,
-                    progress: 0.5, // Start exactly in the center of the first tile
+                    progress: 0.5, 
                     direction: 1, 
                     state: 'boarding', 
                     waitTimer: 120
@@ -42,7 +42,7 @@ function drawTrainSystem(ctx, stations, tracks, gridSize, cameraZoom) {
     ctx.lineCap = 'butt';
     ctx.lineJoin = 'miter';
 
-    // 1. Draw Tracks
+    
     tracks.forEach(path => {
         if (!path || path.length === 0) return;
 
@@ -74,7 +74,7 @@ function drawTrainSystem(ctx, stations, tracks, gridSize, cameraZoom) {
         ctx.stroke();
     });
 
-    // 2. Draw Stations 
+    
     stations.forEach(station => {
         ctx.fillStyle = '#7f8c8d'; 
         ctx.fillRect(station.x + 2, station.y + 2, gridSize - 4, gridSize - 4);
@@ -101,7 +101,7 @@ function updateAndDrawTrains(ctx, tracks, gridSize, nightMode) {
         } else {
             train.progress += TRAIN_SPEED * train.direction;
             
-            // --- FIX: Prevent overshooting the ends of the tracks ---
+            
             if (train.direction === 1) {
                 if (train.pathIndex >= track.length - 2 && train.progress >= 0.5) {
                     train.progress = 0.5;
@@ -145,7 +145,7 @@ function updateAndDrawTrains(ctx, tracks, gridSize, nightMode) {
         const realY = currentNode.y + (nextNode.y - currentNode.y) * visualProgress + gridSize / 2;
         const angle = Math.atan2(nextNode.y - currentNode.y, nextNode.x - currentNode.x);
 
-        // --- NEW: Purple Car Aesthetics ---
+        
         ctx.save();
         ctx.translate(realX, realY);
         ctx.rotate(angle);
@@ -157,32 +157,32 @@ function updateAndDrawTrains(ctx, tracks, gridSize, nightMode) {
         for(let i = -1; i <= 1; i++) {
             const offsetX = i * spacing;
             
-            // Connectors (drawn under cars)
+            
             if (i < 1) {
                 ctx.fillStyle = '#2c3e50';
                 ctx.fillRect(offsetX + carWidth/2 - 2, -4, spacing - carWidth + 4, 8);
             }
             
-            // Drop Shadow
+            
             ctx.fillStyle = 'rgba(0,0,0,0.4)';
             ctx.beginPath();
             if (ctx.roundRect) ctx.roundRect(offsetX - carWidth/2 + 2, -carHeight/2 + 2, carWidth, carHeight, 4);
             else ctx.fillRect(offsetX - carWidth/2 + 2, -carHeight/2 + 2, carWidth, carHeight);
             ctx.fill();
             
-            // Purple Train Body
+            
             ctx.fillStyle = '#9b59b6'; 
             ctx.beginPath();
             if (ctx.roundRect) ctx.roundRect(offsetX - carWidth/2, -carHeight/2, carWidth, carHeight, 4);
             else ctx.fillRect(offsetX - carWidth/2, -carHeight/2, carWidth, carHeight);
             ctx.fill();
             
-            // Sleek dark windows
+            
             ctx.fillStyle = '#2c3e50';
             ctx.fillRect(offsetX - carWidth/2 + 6, -carHeight/2 + 4, carWidth - 12, carHeight - 8);
         }
 
-        // Headlights
+        
         if (nightMode) {
             ctx.fillStyle = 'rgba(255, 255, 150, 0.9)';
             const frontOffsetX = (train.direction === 1 ? 1 : -1) * spacing + (train.direction === 1 ? carWidth/2 : -carWidth/2);

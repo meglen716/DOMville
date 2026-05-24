@@ -10,18 +10,18 @@ function generateTerrain(width, height, gridSize) {
     const cols = Math.floor(width / gridSize);
     const rows = Math.floor(height / gridSize);
 
-    // 1. The Great Ocean
+    
     for (let x = 0; x < cols; x++) {
         for (let y = 0; y < rows; y++) {
             terrainMap.set(`${x * gridSize},${y * gridSize}`, 'ocean');
         }
     }
 
-    // 2. Carving a Circular Island with Random Size
+    
     const centerX = cols / 2;
     const centerY = rows / 2;
     
-    // Randomize the island size to be anywhere from 15% to 45% of the world size
+    
     const minRadius = (cols / 2) * 0.15;
     const maxRadius = (cols / 2) * 0.45;
     const baseRadius = minRadius + Math.random() * (maxRadius - minRadius);
@@ -32,18 +32,18 @@ function generateTerrain(width, height, gridSize) {
             const dy = y - centerY;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            // Smoothed out sine waves to keep it circular but slightly organic
+            
             const angle = Math.atan2(dy, dx);
             const coastlineBump = (Math.sin(angle * 3) * 3) + (Math.cos(angle * 5) * 2);
             const boundary = baseRadius + coastlineBump;
 
             if (distance < boundary) {
-                terrainMap.delete(`${x * gridSize},${y * gridSize}`); // Make it buildable land
+                terrainMap.delete(`${x * gridSize},${y * gridSize}`); 
             }
         }
     }
 
-    // 3. Rivers, Lakes, and Mountains
+    
     let riverX = Math.floor(centerX + (Math.random() * baseRadius - baseRadius / 2));
     for (let y = 0; y < rows; y++) {
         const key1 = `${riverX * gridSize},${y * gridSize}`;
@@ -70,18 +70,18 @@ function generateTerrain(width, height, gridSize) {
         createBlob(startX, startY, gridSize, 'mountain', 20);
     }
 
-    // Generate the visual cache
+    
     renderTerrainCache(width, height, gridSize);
 }
 
-// Extracted into its own function so we can call it after loading a saved game
+
 function renderTerrainCache(width, height, gridSize) {
     terrainCacheCanvas = document.createElement('canvas');
     terrainCacheCanvas.width = width;
     terrainCacheCanvas.height = height;
     const cacheCtx = terrainCacheCanvas.getContext('2d');
 
-    cacheCtx.fillStyle = '#2B5E8A'; // Ocean
+    cacheCtx.fillStyle = '#2B5E8A'; 
     cacheCtx.fillRect(0, 0, width, height);
 
     for (let x = 0; x < width; x += gridSize) {
@@ -89,16 +89,16 @@ function renderTerrainCache(width, height, gridSize) {
             const type = getTerrainAt(x, y);
 
             if (type === null) {
-                cacheCtx.fillStyle = '#f0f0f0'; // Land
+                cacheCtx.fillStyle = '#f0f0f0'; 
                 cacheCtx.fillRect(x, y, gridSize, gridSize);
             } else if (type === 'water') {
-                cacheCtx.fillStyle = '#A0C4FF'; // Water
+                cacheCtx.fillStyle = '#A0C4FF'; 
                 cacheCtx.fillRect(x, y, gridSize, gridSize);
             } else if (type === 'mountain') {
-                cacheCtx.fillStyle = '#f0f0f0'; // Land underneath
+                cacheCtx.fillStyle = '#f0f0f0'; 
                 cacheCtx.fillRect(x, y, gridSize, gridSize);
                 
-                cacheCtx.fillStyle = '#D3D3D3'; // Mountain peak
+                cacheCtx.fillStyle = '#D3D3D3'; 
                 cacheCtx.beginPath();
                 cacheCtx.moveTo(x, y + gridSize);
                 cacheCtx.lineTo(x + gridSize / 2, y);

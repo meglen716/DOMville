@@ -1,18 +1,18 @@
-// ==========================================
-// TRAFFIC, EMERGENCIES & CAR RENDERING
-// ==========================================
+
+
+
 
 const CAR_SPEED = 0.03; 
 const LIGHT_INTERVAL = 180; 
 
-// --- FIXED: Pathing Wrapper ---
+
 function getRoutedPath(startObj, targetObj) {
     if (typeof findPath !== 'function') return null;
     const route = findPath(startObj, targetObj);
     if (route && route.length > 0) {
-        // Prepend the start building's center to animate pulling out
+        
         route.unshift({ x: startObj.x, y: startObj.y });
-        // (Removed the duplicate target push, findPath already includes the target node!)
+        
     }
     return route;
 }
@@ -31,7 +31,7 @@ function manageTraffic() {
     const schools = activeEntities.filter(ent => ent.type === 'school'); 
     const shops = activeEntities.filter(ent => ent.type === 'supermarket');
     
-    // --- Emergencies ---
+    
     const policeStations = activeEntities.filter(ent => ent.type === 'policeStation'); 
     let activePolice = cars.filter(c => c.type === 'police').length; let maxPolice = policeStations.length * 2; 
 
@@ -41,7 +41,7 @@ function manageTraffic() {
     const fireStations = activeEntities.filter(ent => ent.type === 'fireStation');
     let activeFiretrucks = cars.filter(c => c.type === 'firetruck').length; let maxFiretrucks = fireStations.length; 
 
-    // --- Supply Chain ---
+    
     const factories = activeEntities.filter(ent => ent.type === 'factory');
     const farms = activeEntities.filter(ent => ent.type === 'farm');
     const hungryShops = shops.filter(s => (s.stockLevel || 0) < 80);
@@ -235,7 +235,7 @@ function updateAndDrawCars(ctx) {
     for (let i = cars.length - 1; i >= 0; i--) {
         const car = cars[i];
         
-        // --- 1. Waiting Timer Logic (Unloading, Extinguishing, etc.) ---
+        
         if (car.waitTimer > 0) { 
             car.waitTimer--; 
             if (car.type === 'firetruck' && car.state === 'extinguishing') {
@@ -273,7 +273,7 @@ function updateAndDrawCars(ctx) {
                     const nextPath = getRoutedPath(startNode, car.target);
                     if (nextPath) { car.path = nextPath; car.pathIndex = 0; car.progress = 0; car.state = 'driving_route'; } else { car.waitTimer = 60; } 
                 } 
-                // --- FIXED: Delivery Truck Unloading & Returning ---
+                
                 else if (car.state === 'unloading') {
                     if (car.target && car.target.type === 'supermarket') {
                         car.target.stockLevel = Math.min(100, (car.target.stockLevel || 0) + car.capacity);
@@ -283,7 +283,7 @@ function updateAndDrawCars(ctx) {
                     if (pathHome) { 
                         car.path = pathHome; car.pathIndex = 0; car.progress = 0; car.state = 'driving_home'; 
                     } else { 
-                        cars.splice(i, 1); continue; // Despawn immediately if trapped!
+                        cars.splice(i, 1); continue; 
                     }
                 }
             }
@@ -291,10 +291,10 @@ function updateAndDrawCars(ctx) {
             continue; 
         }
 
-        // --- 2. Idle State Check ---
+        
         if (car.state === 'at_home' || car.state === 'at_work' || car.state === 'at_stop' || car.state === 'at_shop') { car.currentSpeed = 0; car.stuckTimer = 0; continue; }
 
-        // --- 3. Driving & Movement Logic ---
+        
         if (car.path && car.pathIndex < car.path.length - 1) {
             const currentNode = car.path[car.pathIndex]; const nextNode = car.path[car.pathIndex + 1];
             
@@ -326,7 +326,7 @@ function updateAndDrawCars(ctx) {
             const upcomingLight = trafficLights.find(l => l.x === nextNode.x && l.y === nextNode.y);
             const hasRoundabout = roundabouts.some(r => r.x === nextNode.x && r.y === nextNode.y);
 
-            // Traffic Light Logic
+            
             if (upcomingLight && !isEmergencyVehicle && !hasRoundabout && car.type !== 'rioter') {
                 const state = upcomingLight.state || 'H_G'; 
                 const isMovingHorizontally = Math.abs(nextNode.x - currentNode.x) > 0; const isMovingVertically = Math.abs(nextNode.y - currentNode.y) > 0;
@@ -342,7 +342,7 @@ function updateAndDrawCars(ctx) {
                 }
             }
 
-            // Direction-Aware Radar Anti-Overlap Brakes
+            
             if (!isEmergencyVehicle) {
                 const isLarge = (car.type === 'bus' || car.type === 'firetruck' || car.type === 'deliveryTruck');
                 const RADAR_DIST = isLarge ? gridSize * 1.5 : gridSize;
@@ -387,7 +387,7 @@ function updateAndDrawCars(ctx) {
                 }
             }
 
-            // --- FIXED: Ghost Mode to break permanent gridlocks ---
+            
             if (speedModifier === 0) { 
                 car.stuckTimer = (car.stuckTimer || 0) + 1; 
                 if (car.stuckTimer > 150) speedModifier = 1.0; 
@@ -406,7 +406,7 @@ function updateAndDrawCars(ctx) {
             if (car.progress >= 1.0) { car.progress = 0; car.pathIndex++; }
 
         } else {
-            // --- 4. Destination Reached Logic ---
+            
             if (car.type === 'firetruck') {
                 if (car.state === 'driving_emergency') { car.state = 'extinguishing'; car.waitTimer = 120; } else if (car.state === 'driving_home') { cars.splice(i, 1); continue; }
             }
@@ -427,7 +427,7 @@ function updateAndDrawCars(ctx) {
                     } else { cars.splice(i, 1); continue; }
                 } 
             } 
-            // --- FIXED: Despawn Delivery Trucks at Home ---
+            
             else if (car.type === 'deliveryTruck') {
                 if (car.state === 'driving_delivery') { car.state = 'unloading'; car.waitTimer = 240; } 
                 else if (car.state === 'driving_home') { cars.splice(i, 1); continue; }

@@ -1,28 +1,28 @@
-// ==========================================
-// DISASTERS & EMERGENCIES SYSTEM
-// ==========================================
 
-// --- FIRE & PLAGUE CONSTANTS (Nerfed for better gameplay) ---
-const FIRE_CHANCE_BASE = 0.000005;   // Was 0.00002 (4x less frequent)
-const FIRE_GROWTH_TICK = 1200;       // Fires grow much slower
+
+
+
+
+const FIRE_CHANCE_BASE = 0.000005;   
+const FIRE_GROWTH_TICK = 1200;       
 const FIRE_BURN_DOWN_TICK = 2400;   
-const SPREAD_CHANCE = 0.001;         // Spreads 3x less often
+const SPREAD_CHANCE = 0.001;         
 
-const PLAGUE_INCUBATION_TICK = 4800; // Takes longer to incubate
-const PLAGUE_SPREAD_CHANCE = 0.01;   // Spreads 3x less often
+const PLAGUE_INCUBATION_TICK = 4800; 
+const PLAGUE_SPREAD_CHANCE = 0.01;   
 
 let disasterTimer = 0;
 const tornadoes = []; 
 
-// Earthquake Variables
+
 let earthquakeTimer = 0; 
 let earthquakeMagnitude = 0;
-const EARTHQUAKE_CHANCE = 0.000001; // Extremely rare (5x less frequent)
+const EARTHQUAKE_CHANCE = 0.000001; 
 
-// Riot Variables
+
 let highTaxTimer = 0;
 let isRioting = false;
-const RIOT_THRESHOLD = 2700; // Players have more time to fix high taxes
+const RIOT_THRESHOLD = 2700; 
 
 function getEarthquakeOffset() {
     if (earthquakeTimer > 0) return { x: (Math.random() - 0.5) * earthquakeMagnitude, y: (Math.random() - 0.5) * earthquakeMagnitude };
@@ -35,10 +35,10 @@ function manageDisasters(entities, gridSize, cars) {
     const fireStations = entities.filter(e => e.type === 'fireStation');
     const hasFireStation = fireStations.length > 0;
 
-    // --- 1. FIRE, PLAGUE & TIMEOUT LOGIC ---
+    
     entities.forEach(ent => {
         
-        // --- EMERGENCY HEARTBEAT & TIMEOUT ---
+        
         if (ent.hasEmergency && !ent.isAbandoned && !ent.isBurned) {
             if (ent.emergencyTimer === undefined || ent.emergencyTimer <= 0) {
                 ent.emergencyTimer = 2700; 
@@ -55,7 +55,7 @@ function manageDisasters(entities, gridSize, cars) {
             }
         }
 
-        // A. PLAGUE LOGIC 
+        
         if ((ent.isAbandoned || ent.isBurned) && ['house', 'office', 'supermarket', 'school'].includes(ent.type)) {
             ent.deadTimer = (ent.deadTimer || 0) + 1;
             
@@ -82,7 +82,7 @@ function manageDisasters(entities, gridSize, cars) {
             }
         }
         
-        // B. FIRE LOGIC 
+        
         else if (['house', 'office', 'supermarket', 'school', 'factory'].includes(ent.type) && !ent.isAbandoned && !ent.isBurned && ent.hasRoad !== false) {
             
             if (!ent.fireLevel && hasFireStation) {
@@ -141,7 +141,7 @@ function manageDisasters(entities, gridSize, cars) {
         }
     });
 
-    // --- 2. RIOT LOGIC ---
+    
     if (typeof currentTaxRate !== 'undefined') {
         if (currentTaxRate >= 1.5) {
             highTaxTimer++;
@@ -184,7 +184,7 @@ function manageDisasters(entities, gridSize, cars) {
         }
 
         rioters.forEach(r => {
-            if (Math.random() < 0.002) {  // Riots cause fewer fires now
+            if (Math.random() < 0.002) {  
                 let nearby = entities.filter(e => 
                     ['house', 'office', 'supermarket', 'school'].includes(e.type) && 
                     !e.isBurned && !e.fireLevel && 
@@ -207,9 +207,9 @@ function manageDisasters(entities, gridSize, cars) {
         }
     }
 
-    // --- 3. TORNADO & EARTHQUAKE LOGIC ---
+    
     let isStorming = typeof getWeatherState === 'function' && getWeatherState().toUpperCase() === 'STORM';
-    let tornadoChance = isStorming ? 0.0005 : 0.000005; // Massively nerfed
+    let tornadoChance = isStorming ? 0.0005 : 0.000005; 
     
     if (Math.random() < tornadoChance && tornadoes.length < 1) {
         const startLeft = Math.random() > 0.5;
@@ -220,7 +220,7 @@ function manageDisasters(entities, gridSize, cars) {
 
     if (earthquakeTimer === 0 && Math.random() < EARTHQUAKE_CHANCE) { 
         earthquakeTimer = 400; 
-        earthquakeMagnitude = Math.random() * 8 + 6; // Less aggressive shaking
+        earthquakeMagnitude = Math.random() * 8 + 6; 
         if (typeof playSFX === 'function') playSFX('earthquake', 0.8);
         if (typeof logActivity === 'function') logActivity("EARTHQUAKE DETECTED! Brace yourself!", "emergency");
     }
@@ -228,7 +228,7 @@ function manageDisasters(entities, gridSize, cars) {
     if (earthquakeTimer > 0) {
         earthquakeTimer--;
         
-        // NERFED: Only destroys a building every 100 ticks, with only a 40% chance of actually doing it
+        
         if (earthquakeTimer % 100 === 0 && Math.random() < 0.4) {
             let activeBldgs = entities.filter(e => !e.isBurned && e.type !== 'park' && e.type !== 'waterPump');
             if (activeBldgs.length > 0) { 
@@ -238,7 +238,7 @@ function manageDisasters(entities, gridSize, cars) {
                 for (let i = cars.length - 1; i >= 0; i--) { if (cars[i].home === target) cars.splice(i, 1); } 
             }
             
-            // 30% chance to spark a fire during the quake
+            
             if (Math.random() < 0.3) {
                 let unburned = entities.filter(e => !e.fireLevel && !e.isBurned && ['house', 'office', 'supermarket', 'school', 'factory'].includes(e.type));
                 if (unburned.length > 0) { 

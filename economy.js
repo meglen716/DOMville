@@ -1,6 +1,6 @@
-// ==========================================
-// ECONOMY & SUPPLY CHAIN SYSTEM
-// ==========================================
+
+
+
 
 function processLandValueAndGrowth(entities, gridSize, currentTaxRate, trainStations) {
     const parks = entities.filter(e => e.type === 'park'); 
@@ -8,7 +8,7 @@ function processLandValueAndGrowth(entities, gridSize, currentTaxRate, trainStat
     const factories = entities.filter(e => e.type === 'factory'); 
 
     entities.forEach(ent => {
-        // Initialize Supermarket stock
+        
         if (ent.type === 'supermarket' && ent.stockLevel === undefined) ent.stockLevel = 100;
 
         if (ent.type === 'house' && !ent.isAbandoned && !ent.isBurned) {
@@ -30,7 +30,7 @@ function processLandValueAndGrowth(entities, gridSize, currentTaxRate, trainStat
                 if (dist <= gridSize * 8) lv += ((gridSize * 8 - dist) / gridSize) * 15; 
             });
 
-            // Factory Pollution (Adjusted for better balance)
+            
             factories.forEach(factory => { 
                 const dist = Math.abs(factory.x - ent.x) + Math.abs(factory.y - ent.y); 
                 if (dist <= gridSize * 12) lv -= ((gridSize * 12 - dist) / gridSize) * 10; 
@@ -42,7 +42,7 @@ function processLandValueAndGrowth(entities, gridSize, currentTaxRate, trainStat
             if (ent.hasPower && ent.hasWater && ent.hasRoad) {
                 if (!ent.growth) ent.growth = 0; 
                 
-                // Harsher penalty if taxes are cranked too high
+                
                 const taxPenalty = (1.0 - currentTaxRate) * 0.8;
                 const growthRate = Math.max(-0.5, (ent.landValue / 100) + taxPenalty) * (1 + (density - 1) * 0.2); 
                 

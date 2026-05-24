@@ -1,9 +1,9 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// ==========================================
-// 1. GAME STATE & CONSTANTS
-// ==========================================
+
+
+
 let currentTool = 'house';
 let selectedEntity = null; 
 
@@ -40,7 +40,7 @@ const MAINTENANCE_COSTS = {
     factory: 100, farm: 30
 };
 
-// --- ECONOMY FUNCTIONS ---
+
 function spendFunds(amount) {
     if (typeof cityFunds !== 'undefined') { cityFunds -= amount; }
     else { window.cityFunds = (window.cityFunds || 20000) - amount; }
@@ -50,7 +50,7 @@ function spendFunds(amount) {
 function refund(type) {
     const cost = BUILDING_COSTS[type] || 0;
     if (cost > 0) {
-        const refundAmount = Math.floor(cost / 2); // 50% cash back
+        const refundAmount = Math.floor(cost / 2); 
         if (typeof cityFunds !== 'undefined') { cityFunds += refundAmount; }
         else { window.cityFunds = (window.cityFunds || 20000) + refundAmount; }
         
@@ -61,7 +61,7 @@ function refund(type) {
     }
 }
 
-// --- ACTIVITY LOGGER ---
+
 function logActivity(message, type = 'info') {
     const list = document.getElementById('activity-list');
     if (!list) return;
@@ -101,9 +101,9 @@ function isRoad(gridX, gridY) {
     return isNormalRoad || isLiveDrawing || isRoundabout;
 }
 
-// ==========================================
-// 2. SETUP, AUTO-SAVE, UI & SHORTCUTS
-// ==========================================
+
+
+
 function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; clampCamera(); }
 window.addEventListener('resize', resize); resize();
 
@@ -218,7 +218,7 @@ if (demToggle) {
     });
 }
 
-// --- SMART TOOLTIPS (FUNDS LOCKS ONLY) ---
+
 function updateTooltips() {
     const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : (window.cityFunds || 0);
 
@@ -228,7 +228,7 @@ function updateTooltips() {
         
         const cost = BUILDING_COSTS[toolName] || 0; 
         
-        // Locked by Lack of Funds
+        
         if (currentFunds < cost) {
             btn.classList.add('locked-tool');
             btn.setAttribute('data-tooltip', `Not enough funds! ($${cost})`);
@@ -239,7 +239,7 @@ function updateTooltips() {
             return;
         }
 
-        // Unlocked and Affordable
+        
         btn.classList.remove('locked-tool');
         const upkeep = MAINTENANCE_COSTS[toolName];
         let tooltipText = `Cost: $${cost}`; 
@@ -361,7 +361,14 @@ function updateInfoPanel() {
 
     if (selectedEntity.fireLevel > 0) html += `<div class="info-stat bad">🔥 ON FIRE! (${Math.floor(selectedEntity.fireLevel)})</div>`;
     if (selectedEntity.isAbandoned) html += `<div class="info-stat bad">👻 ABANDONED</div>`;
-    if (selectedEntity.isBurned) html += `<div class="info-stat bad">☠️ DESTROYED</div>`;
+    
+    
+    if (selectedEntity.isBurned) {
+        html += `<div class="info-stat bad">☠️ DESTROYED</div>`;
+        const cost = BUILDING_COSTS[selectedEntity.type] || 0;
+        html += `<button id="rebuild-btn" style="margin-top:12px; width:100%; padding:8px; background-color:#2c3e50; color:#ecf0f1; border:1px solid #7f8c8d; border-radius:4px; cursor:pointer; font-family:sans-serif; transition: 0.2s;">🛠️ Rebuild ($${cost})</button>`;
+    }
+    
     content.innerHTML = html;
 }
 
@@ -416,9 +423,9 @@ function updateHUD() {
     updateTooltips();
 }
 
-// ==========================================
-// 3. CORE LOGIC: ERASER 
-// ==========================================
+
+
+
 function performDeletion(clientX, clientY) {
     const { gridX, gridY } = getGridCoords(clientX, clientY);
     let deletedSomething = false;
@@ -471,9 +478,9 @@ function performDeletion(clientX, clientY) {
     }
 }
 
-// ==========================================
-// 4. MOUSE & CAMERA INTERACTION 
-// ==========================================
+
+
+
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 canvas.addEventListener('mousedown', (e) => {
@@ -627,9 +634,9 @@ canvas.addEventListener('wheel', (e) => {
     camera.x += (worldPointerAfter.x - worldPointerBefore.x) * camera.zoom; camera.y += (worldPointerAfter.y - worldPointerBefore.y) * camera.zoom; clampCamera(); 
 }, { passive: false });
 
-// ==========================================
-// 5. RENDER HELPERS
-// ==========================================
+
+
+
 function drawMinimap(ctx) {
     const minimapSize = 200; const padding = 20; const mapX = padding; const mapY = canvas.height - minimapSize - padding - 80; const scale = minimapSize / WORLD_SIZE;
     ctx.fillStyle = 'rgba(15, 25, 40, 0.85)'; ctx.fillRect(mapX, mapY, minimapSize, minimapSize);
@@ -668,9 +675,9 @@ function drawMinimap(ctx) {
     ctx.fillText('Middle/Right-Drag: Pan Camera  •  Scroll: Zoom', mapX, mapY + minimapSize + 28);
 }
 
-// ==========================================
-// 6. MAIN GAME LOOP
-// ==========================================
+
+
+
 function gameLoop() {
     if (isFirstFrame) { if (isNewGame) { if (typeof cityFunds !== 'undefined') cityFunds = 20000; else window.cityFunds = 20000; } isFirstFrame = false; }
 
@@ -801,35 +808,35 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-// ==========================================
-// IMPORT & EXPORT SYSTEM
-// ==========================================
+
+
+
 window.addEventListener('DOMContentLoaded', () => {
     const exportBtn = document.getElementById('export-game-btn');
     const importBtn = document.getElementById('import-game-btn');
 
-    // EXPORT Logic
+    
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
             if (typeof saveGame === 'function') saveGame(); 
             const savedData = localStorage.getItem('miniCitySave');
             
             if (savedData) {
-                // Encode (encrypt) the data
+                
                 const encodedData = btoa(encodeURIComponent(savedData));
                 
-                // Create a text file from the encoded data
+                
                 const blob = new Blob([encodedData], { type: 'text/plain' });
                 const url = URL.createObjectURL(blob);
                 
-                // Create a temporary link to trigger the download
+                
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'meglen_city_save.txt'; // The default file name
+                a.download = 'DOMville_city_save.txt'; 
                 document.body.appendChild(a);
                 a.click();
                 
-                // Clean up the temporary link
+                
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
             } else {
@@ -838,13 +845,13 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // IMPORT Logic
+    
     if (importBtn) {
         importBtn.addEventListener('click', () => {
-            // Create a hidden file input element on the fly
+            
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
-            fileInput.accept = '.txt'; // Only allow text files
+            fileInput.accept = '.txt'; 
             
             fileInput.addEventListener('change', (e) => {
                 const file = e.target.files[0];
@@ -852,17 +859,17 @@ window.addEventListener('DOMContentLoaded', () => {
 
                 const reader = new FileReader();
                 
-                // When the file is finished reading
+                
                 reader.onload = (event) => {
                     const inputData = event.target.result.trim();
                     if (!inputData) return;
                     
                     try {
-                        // Decrypt and parse the data
-                        const decodedData = decodeURIComponent(atob(inputData));
-                        JSON.parse(decodedData); // Validates that it's a real JSON save
                         
-                        // Save it to localStorage and reload the game
+                        const decodedData = decodeURIComponent(atob(inputData));
+                        JSON.parse(decodedData); 
+                        
+                        
                         localStorage.setItem('miniCitySave', decodedData);
                         location.reload(); 
                     } catch (error) {
@@ -871,13 +878,47 @@ window.addEventListener('DOMContentLoaded', () => {
                     }
                 };
                 
-                // Read the uploaded file as text
+                
                 reader.readAsText(file);
             });
             
-            // Trigger the browser's file picker dialog
+            
             fileInput.click();
         });
+    }
+});
+
+
+document.getElementById('info-content').addEventListener('click', (e) => {
+    if (e.target.id === 'rebuild-btn') {
+        if (!selectedEntity || !selectedEntity.isBurned) return;
+
+        const cost = BUILDING_COSTS[selectedEntity.type] || 0;
+        const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : window.cityFunds;
+
+        if (currentFunds >= cost) {
+            spendFunds(cost);
+            selectedEntity.isBurned = false;
+            selectedEntity.fireLevel = 0; 
+            
+            
+            if (selectedEntity.type === 'house') {
+                selectedEntity.level = 1; 
+                selectedEntity.densityMult = 1.0;
+            }
+            
+            if (typeof logActivity === 'function') {
+                logActivity(`Rebuilt ${selectedEntity.type} for $${cost}.`, "info");
+            }
+            
+            if (typeof spawnDustParticles === 'function') {
+                spawnDustParticles(selectedEntity.x, selectedEntity.y, 20, '#2ecc71', gridSize);
+            }
+            
+            updateInfoPanel(); 
+        } else {
+            alert(`Not enough funds to rebuild! Cost: $${cost}`);
+        }
     }
 });
 

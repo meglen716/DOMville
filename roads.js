@@ -1,5 +1,5 @@
-// roads.js
-// Handles all road detection, pathfinding logic, and road rendering.
+
+
 
 function isRoad(x, y) {
     for (const road of roads) { for (const node of road) { if (node.x === x && node.y === y) return true; } }
@@ -7,26 +7,26 @@ function isRoad(x, y) {
     return false;
 }
 
-// --- NEW: Smart Traffic Weighting ---
+
 function getTrafficWeight(x, y) {
-    let weight = 1; // Base cost of driving 1 block
+    let weight = 1; 
     if (typeof cars !== 'undefined') {
         for (const car of cars) {
-            // If a car is physically near this intersection, increase the "cost" of routing here
+            
             if (Math.abs(car.realX - x) < gridSize * 1.5 && Math.abs(car.realY - y) < gridSize * 1.5) {
-                weight += 3; // Traffic penalty
+                weight += 3; 
             }
         }
     }
     return weight;
 }
 
-// --- UPDATED: A* Pathfinding (Waze-style Routing) ---
+
 function findPath(start, target) {
     const startX = Math.floor(start.x/gridSize)*gridSize; const startY = Math.floor(start.y/gridSize)*gridSize;
     const targetX = Math.floor(target.x/gridSize)*gridSize; const targetY = Math.floor(target.y/gridSize)*gridSize;
 
-    // We now track the 'cost' of the path to avoid traffic
+    
     const openSet = [{ x: startX, y: startY, path: [], cost: 0 }];
     const visited = new Map(); 
     visited.set(`${startX},${startY}`, 0);
@@ -34,7 +34,7 @@ function findPath(start, target) {
     const directions = [{ dx: 0, dy: -gridSize }, { dx: 0, dy: gridSize }, { dx: -gridSize, dy: 0 }, { dx: gridSize, dy: 0 }];
 
     while (openSet.length > 0) {
-        // Sort to always process the fastest/cheapest route first
+        
         openSet.sort((a, b) => a.cost - b.cost);
         const current = openSet.shift();
 
@@ -44,7 +44,7 @@ function findPath(start, target) {
             const nextX = current.x + dir.dx; const nextY = current.y + dir.dy; 
             const key = `${nextX},${nextY}`;
             
-            // Logic for snapping exactly to house driveways
+            
             if (current.x === startX && current.y === startY && start.type === 'house' && start.driveway) {
                 if (nextX !== start.driveway.x || nextY !== start.driveway.y) continue;
             }
@@ -60,7 +60,7 @@ function findPath(start, target) {
                 }
             } 
             else if (isRoad(nextX, nextY)) {
-                // Calculate dynamic cost based on current traffic density
+                
                 const trafficPenalty = getTrafficWeight(nextX, nextY);
                 const newCost = current.cost + trafficPenalty;
 
@@ -78,13 +78,13 @@ function drawAllRoadsAndBridges() {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Combine saved roads with the one currently being drawn for live-preview
+    
     const allRoadPaths = [...roads];
     if (typeof isDrawingRoad !== 'undefined' && isDrawingRoad && currentRoadPath.length > 0) {
         allRoadPaths.push(currentRoadPath);
     }
 
-    // --- 1. Draw the Base Asphalt (Unified Dark Gray) ---
+    
     ctx.strokeStyle = '#404040'; 
     ctx.lineWidth = gridSize - 4;
     
@@ -95,11 +95,11 @@ function drawAllRoadsAndBridges() {
         for (let i = 1; i < path.length; i++) {
             ctx.lineTo(path[i].x + gridSize / 2, path[i].y + gridSize / 2);
         }
-        // Draw a dot if it's a single tile
+        
         if (path.length === 1) ctx.lineTo(path[0].x + gridSize / 2 + 1, path[0].y + gridSize / 2);
     });
 
-    // Auto-Connect to Adjacent Paths (Creates seamless Intersections)
+    
     allRoadPaths.forEach(path => {
         path.forEach(node => {
             const nx = node.x; const ny = node.y;
@@ -117,22 +117,22 @@ function drawAllRoadsAndBridges() {
     });
     ctx.stroke();
 
-    // --- 2. Draw the Colored Dashed Center Lines ---
+    
     ctx.lineWidth = 2;
     ctx.setLineDash([8, 12]);
     
     allRoadPaths.forEach(path => {
         if (!path || path.length === 0) return;
 
-        // Safely check the type of the road (default to regular road if undefined)
+        
         const roadType = path[0].type || 'road'; 
         
         if (roadType === 'bridge') {
-            ctx.strokeStyle = '#f1c40f'; // Yellow Dashes
+            ctx.strokeStyle = '#f1c40f'; 
         } else if (roadType === 'tunnel') {
-            ctx.strokeStyle = '#00d2d3'; // Cyan Dashes
+            ctx.strokeStyle = '#00d2d3'; 
         } else {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'; // White Dashes
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'; 
         }
 
         ctx.beginPath();
@@ -145,5 +145,5 @@ function drawAllRoadsAndBridges() {
         ctx.stroke();
     });
     
-    ctx.setLineDash([]); // Reset so buildings don't become dashed
+    ctx.setLineDash([]); 
 }
