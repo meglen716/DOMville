@@ -832,7 +832,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'DOMville_city_.txt';
+                a.download = 'DOMville_city_.txt'; 
                 document.body.appendChild(a);
                 a.click();
                 
