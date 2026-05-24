@@ -805,35 +805,33 @@ function gameLoop() {
 // IMPORT & EXPORT SYSTEM
 // ==========================================
 window.addEventListener('DOMContentLoaded', () => {
-    const saveModal = document.getElementById('save-modal');
-    const saveTextarea = document.getElementById('save-textarea');
-    const saveActionBtn = document.getElementById('save-action-btn');
-    const saveCloseBtn = document.getElementById('save-close-btn');
-    const saveModalTitle = document.getElementById('save-modal-title');
-
     const exportBtn = document.getElementById('export-game-btn');
     const importBtn = document.getElementById('import-game-btn');
 
     // EXPORT Logic
-    if (exportBtn && saveModal) {
+    if (exportBtn) {
         exportBtn.addEventListener('click', () => {
             if (typeof saveGame === 'function') saveGame(); 
             const savedData = localStorage.getItem('miniCitySave');
             
             if (savedData) {
+                // Encode (encrypt) the data
                 const encodedData = btoa(encodeURIComponent(savedData));
                 
-                saveModalTitle.innerText = "Export Game Data";
-                saveTextarea.value = encodedData;
-                saveTextarea.readOnly = true;
+                // Create a text file from the encoded data
+                const blob = new Blob([encodedData], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
                 
-                saveActionBtn.innerText = "Copy to Clipboard";
-                saveActionBtn.onclick = () => {
-                    navigator.clipboard.writeText(encodedData);
-                    saveActionBtn.innerText = "Copied!";
-                };
+                // Create a temporary link to trigger the download
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'meglen_city_save.txt'; // The default file name
+                document.body.appendChild(a);
+                a.click();
                 
-                saveModal.style.display = "flex";
+                // Clean up the temporary link
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
             } else {
                 alert("No save data found to export.");
             }
@@ -841,36 +839,44 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     // IMPORT Logic
-    if (importBtn && saveModal) {
+    if (importBtn) {
         importBtn.addEventListener('click', () => {
-            saveModalTitle.innerText = "Import Game Data";
-            saveTextarea.value = "";
-            saveTextarea.readOnly = false;
+            // Create a hidden file input element on the fly
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.txt'; // Only allow text files
             
-            saveActionBtn.innerText = "Load Game";
-            saveActionBtn.onclick = () => {
-                const inputData = saveTextarea.value.trim();
-                if (!inputData) return;
-                
-                try {
-                    const decodedData = decodeURIComponent(atob(inputData));
-                    JSON.parse(decodedData); // Validates the JSON
-                    
-                    localStorage.setItem('miniCitySave', decodedData);
-                    location.reload();
-                } catch (error) {
-                    alert("Invalid or corrupted save string.");
-                }
-            };
-            
-            saveModal.style.display = "flex";
-        });
-    }
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
 
-    // Close Modal Logic
-    if (saveCloseBtn && saveModal) {
-        saveCloseBtn.addEventListener('click', () => {
-            saveModal.style.display = "none";
+                const reader = new FileReader();
+                
+                // When the file is finished reading
+                reader.onload = (event) => {
+                    const inputData = event.target.result.trim();
+                    if (!inputData) return;
+                    
+                    try {
+                        // Decrypt and parse the data
+                        const decodedData = decodeURIComponent(atob(inputData));
+                        JSON.parse(decodedData); // Validates that it's a real JSON save
+                        
+                        // Save it to localStorage and reload the game
+                        localStorage.setItem('miniCitySave', decodedData);
+                        location.reload(); 
+                    } catch (error) {
+                        alert("Invalid or corrupted save file.");
+                        console.error("Import error:", error);
+                    }
+                };
+                
+                // Read the uploaded file as text
+                reader.readAsText(file);
+            });
+            
+            // Trigger the browser's file picker dialog
+            fileInput.click();
         });
     }
 });
