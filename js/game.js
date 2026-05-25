@@ -1,9 +1,6 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-
-
-
 let currentTool = 'house';
 let selectedEntity = null; 
 
@@ -40,7 +37,6 @@ const MAINTENANCE_COSTS = {
     factory: 100, farm: 30
 };
 
-
 function spendFunds(amount) {
     if (typeof cityFunds !== 'undefined') { cityFunds -= amount; }
     else { window.cityFunds = (window.cityFunds || 20000) - amount; }
@@ -60,7 +56,6 @@ function refund(type) {
         updateHUD();
     }
 }
-
 
 function logActivity(message, type = 'info') {
     const list = document.getElementById('activity-list');
@@ -100,9 +95,6 @@ function isRoad(gridX, gridY) {
     const isRoundabout = roundabouts.some(r => r.x === gridX && r.y === gridY);
     return isNormalRoad || isLiveDrawing || isRoundabout;
 }
-
-
-
 
 function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; clampCamera(); }
 window.addEventListener('resize', resize); resize();
@@ -218,7 +210,6 @@ if (demToggle) {
     });
 }
 
-
 function updateTooltips() {
     const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : (window.cityFunds || 0);
 
@@ -227,7 +218,6 @@ function updateTooltips() {
         if (toolName === 'delete' || toolName === 'inspect') return;
         
         const cost = BUILDING_COSTS[toolName] || 0; 
-        
         
         if (currentFunds < cost) {
             btn.classList.add('locked-tool');
@@ -239,7 +229,6 @@ function updateTooltips() {
             return;
         }
 
-        
         btn.classList.remove('locked-tool');
         const upkeep = MAINTENANCE_COSTS[toolName];
         let tooltipText = `Cost: $${cost}`; 
@@ -362,11 +351,20 @@ function updateInfoPanel() {
     if (selectedEntity.fireLevel > 0) html += `<div class="info-stat bad">🔥 ON FIRE! (${Math.floor(selectedEntity.fireLevel)})</div>`;
     if (selectedEntity.isAbandoned) html += `<div class="info-stat bad">👻 ABANDONED</div>`;
     
-    
     if (selectedEntity.isBurned) {
-        html += `<div class="info-stat bad">☠️ DESTROYED</div>`;
-        const cost = BUILDING_COSTS[selectedEntity.type] || 0;
-        html += `<button id="rebuild-btn" style="margin-top:12px; width:100%; padding:8px; background-color:#2c3e50; color:#ecf0f1; border:1px solid #7f8c8d; border-radius:4px; cursor:pointer; font-family:sans-serif; transition: 0.2s;">🛠️ Rebuild ($${cost})</button>`;
+        if (selectedEntity.isRebuilding) {
+            
+            let currentDay = typeof gameDay !== 'undefined' ? gameDay : 0;
+            let currentHour = typeof gameClock !== 'undefined' ? gameClock : 0;
+            let absoluteCurrentTime = (currentDay * 24) + currentHour;
+            let hoursLeft = Math.max(0, selectedEntity.rebuildTargetTime - absoluteCurrentTime);
+            
+            html += `<div class="info-stat">🚧 <span style="color:#f1c40f; font-weight:bold;">Rebuilding... (${Math.ceil(hoursLeft)}h)</span></div>`;
+        } else {
+            html += `<div class="info-stat bad">☠️ DESTROYED</div>`;
+            const cost = BUILDING_COSTS[selectedEntity.type] || 0;
+            html += `<button id="rebuild-btn" style="margin-top:12px; width:100%; padding:8px; background-color:#2c3e50; color:#ecf0f1; border:1px solid #7f8c8d; border-radius:4px; cursor:pointer; font-family:sans-serif; transition: 0.2s;">🛠️ Rebuild ($${cost})</button>`;
+        }
     }
     
     content.innerHTML = html;
@@ -423,9 +421,6 @@ function updateHUD() {
     updateTooltips();
 }
 
-
-
-
 function performDeletion(clientX, clientY) {
     const { gridX, gridY } = getGridCoords(clientX, clientY);
     let deletedSomething = false;
@@ -477,9 +472,6 @@ function performDeletion(clientX, clientY) {
         }
     }
 }
-
-
-
 
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -634,9 +626,6 @@ canvas.addEventListener('wheel', (e) => {
     camera.x += (worldPointerAfter.x - worldPointerBefore.x) * camera.zoom; camera.y += (worldPointerAfter.y - worldPointerBefore.y) * camera.zoom; clampCamera(); 
 }, { passive: false });
 
-
-
-
 function drawMinimap(ctx) {
     const minimapSize = 200; const padding = 20; const mapX = padding; const mapY = canvas.height - minimapSize - padding - 80; const scale = minimapSize / WORLD_SIZE;
     ctx.fillStyle = 'rgba(15, 25, 40, 0.85)'; ctx.fillRect(mapX, mapY, minimapSize, minimapSize);
@@ -675,9 +664,6 @@ function drawMinimap(ctx) {
     ctx.fillText('Middle/Right-Drag: Pan Camera  •  Scroll: Zoom', mapX, mapY + minimapSize + 28);
 }
 
-
-
-
 function gameLoop() {
     if (isFirstFrame) { if (isNewGame) { if (typeof cityFunds !== 'undefined') cityFunds = 20000; else window.cityFunds = 20000; } isFirstFrame = false; }
 
@@ -700,7 +686,7 @@ function gameLoop() {
     for (let i = clampStartX; i <= clampEndX; i += gridSize) { ctx.beginPath(); ctx.moveTo(i, clampStartY); ctx.lineTo(i, clampEndY); ctx.stroke(); }
     for (let i = clampStartY; i <= clampEndY; i += gridSize) { ctx.beginPath(); ctx.moveTo(clampStartX, i); ctx.lineTo(clampEndX, i); ctx.stroke(); }
 
-    drawAllRoadsAndBridges();
+    if (typeof drawAllRoadsAndBridges === 'function') drawAllRoadsAndBridges();
     
     if (typeof drawTrainSystem === 'function') {
         const tracksToDraw = [...trainTracks]; if (isDrawingTrack && currentTrackPath.length > 0) { tracksToDraw.push(currentTrackPath); }
@@ -725,6 +711,43 @@ function gameLoop() {
     if (taxTimer % 300 === 0) { saveGame(); }
 
     entities.forEach(ent => {
+        
+        if (ent.isRebuilding) {
+            let currentDay = typeof gameDay !== 'undefined' ? gameDay : 0;
+            let currentHour = typeof gameClock !== 'undefined' ? gameClock : 0;
+            let absoluteCurrentTime = (currentDay * 24) + currentHour;
+            
+            if (absoluteCurrentTime >= ent.rebuildTargetTime) {
+                
+                ent.isRebuilding = false;
+                ent.isBurned = false;
+                ent.fireLevel = 0; 
+                
+                if (ent.type === 'house') {
+                    ent.level = 1; 
+                    ent.densityMult = 1.0;
+                }
+                
+                if (typeof spawnDustParticles === 'function') {
+                    spawnDustParticles(ent.x, ent.y, 20, '#2ecc71', gridSize);
+                }
+                if (typeof logActivity === 'function') {
+                    logActivity(`Rebuild of ${ent.type} complete!`, "info");
+                }
+                
+                if (selectedEntity === ent) updateInfoPanel();
+            } else {
+                
+                ctx.fillStyle = 'rgba(241, 196, 15, 0.8)'; 
+                ctx.fillRect(ent.x + gridSize/4, ent.y + gridSize/4, gridSize/2, gridSize/2);
+                ctx.fillStyle = '#000'; 
+                ctx.font = 'bold 10px sans-serif'; 
+                ctx.textAlign = 'center'; 
+                ctx.fillText('🚧', ent.x + gridSize/2, ent.y + gridSize/2 + 4);
+            }
+        }
+        
+
         if (ent.driveway && (!isRoad(ent.driveway.x, ent.driveway.y))) { ent.driveway = null; ent.hasRoad = false; }
         if (!ent.driveway) {
             const dirs = [{dx:0, dy:-gridSize}, {dx:gridSize, dy:0}, {dx:0, dy:gridSize}, {dx:-gridSize, dy:0}];
@@ -808,34 +831,25 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-
-
-
 window.addEventListener('DOMContentLoaded', () => {
     const exportBtn = document.getElementById('export-game-btn');
     const importBtn = document.getElementById('import-game-btn');
 
-    
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
             if (typeof saveGame === 'function') saveGame(); 
             const savedData = localStorage.getItem('miniCitySave');
             
             if (savedData) {
-                
                 const encodedData = btoa(encodeURIComponent(savedData));
-                
-                
                 const blob = new Blob([encodedData], { type: 'text/plain' });
                 const url = URL.createObjectURL(blob);
-                
                 
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = 'DOMville_city_.txt'; 
                 document.body.appendChild(a);
                 a.click();
-                
                 
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
@@ -845,10 +859,8 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    
     if (importBtn) {
         importBtn.addEventListener('click', () => {
-            
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
             fileInput.accept = '.txt'; 
@@ -859,16 +871,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
                 const reader = new FileReader();
                 
-                
                 reader.onload = (event) => {
                     const inputData = event.target.result.trim();
                     if (!inputData) return;
                     
                     try {
-                        
                         const decodedData = decodeURIComponent(atob(inputData));
                         JSON.parse(decodedData); 
-                        
                         
                         localStorage.setItem('miniCitySave', decodedData);
                         location.reload(); 
@@ -878,41 +887,35 @@ window.addEventListener('DOMContentLoaded', () => {
                     }
                 };
                 
-                
                 reader.readAsText(file);
             });
-            
             
             fileInput.click();
         });
     }
 });
 
-
 document.getElementById('info-content').addEventListener('click', (e) => {
     if (e.target.id === 'rebuild-btn') {
-        if (!selectedEntity || !selectedEntity.isBurned) return;
+        if (!selectedEntity || !selectedEntity.isBurned || selectedEntity.isRebuilding) return;
 
         const cost = BUILDING_COSTS[selectedEntity.type] || 0;
         const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : window.cityFunds;
 
         if (currentFunds >= cost) {
             spendFunds(cost);
-            selectedEntity.isBurned = false;
-            selectedEntity.fireLevel = 0; 
             
             
-            if (selectedEntity.type === 'house') {
-                selectedEntity.level = 1; 
-                selectedEntity.densityMult = 1.0;
-            }
+            let currentDay = typeof gameDay !== 'undefined' ? gameDay : 0;
+            let currentHour = typeof gameClock !== 'undefined' ? gameClock : 0;
+            let absoluteCurrentTime = (currentDay * 24) + currentHour;
+            
+            
+            selectedEntity.isRebuilding = true;
+            selectedEntity.rebuildTargetTime = absoluteCurrentTime + 24; 
             
             if (typeof logActivity === 'function') {
-                logActivity(`Rebuilt ${selectedEntity.type} for $${cost}.`, "info");
-            }
-            
-            if (typeof spawnDustParticles === 'function') {
-                spawnDustParticles(selectedEntity.x, selectedEntity.y, 20, '#2ecc71', gridSize);
+                logActivity(`Started rebuilding ${selectedEntity.type}. Takes 24h.`, "info");
             }
             
             updateInfoPanel(); 

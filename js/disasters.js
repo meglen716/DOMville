@@ -1,8 +1,4 @@
 
-
-
-
-
 const FIRE_CHANCE_BASE = 0.000005;   
 const FIRE_GROWTH_TICK = 1200;       
 const FIRE_BURN_DOWN_TICK = 2400;   
@@ -116,6 +112,7 @@ function manageDisasters(entities, gridSize, cars) {
                         if (typeof spawnDustParticles === 'function') spawnDustParticles(ent.x, ent.y, 10, '#e67e22', gridSize); 
                     } 
                     else if (ent.fireTimer > FIRE_BURN_DOWN_TICK) { 
+                        
                         ent.isBurned = true; ent.fireLevel = 0; ent.color = '#34495e'; 
                         if (typeof spawnDustParticles === 'function') spawnDustParticles(ent.x, ent.y, 30, '#2c3e50', gridSize); 
                         for (let i = cars.length - 1; i >= 0; i--) { if (cars[i].home === ent) cars.splice(i, 1); } 
@@ -148,7 +145,7 @@ function manageDisasters(entities, gridSize, cars) {
             if (highTaxTimer > RIOT_THRESHOLD && !isRioting) {
                 isRioting = true;
                 if (typeof playSFX === 'function') playSFX('riot', 0.4);
-                if (typeof logActivity === 'function') logActivity("High taxes have caused a Riot!", "emergency");
+                if (typeof logActivity === 'function') logActivity("High taxes have caused an Angry Mob!", "emergency");
             }
         } else {
             highTaxTimer = Math.max(0, highTaxTimer - 2); 
@@ -162,43 +159,64 @@ function manageDisasters(entities, gridSize, cars) {
     if (isRioting) {
         let rioters = cars.filter(c => c.type === 'rioter');
         
+        
         if (rioters.length < 15 && Math.random() < 0.05 && typeof roads !== 'undefined' && roads.length > 0) {
             let startPath = roads[Math.floor(Math.random() * roads.length)];
-            let endPath = roads[Math.floor(Math.random() * roads.length)];
-            
-            if (startPath && startPath.length > 0 && endPath && endPath.length > 0) {
+            if (startPath && startPath.length > 0) {
                 let startNode = startPath[Math.floor(Math.random() * startPath.length)];
-                let endNode = endPath[Math.floor(Math.random() * endPath.length)];
                 
-                let route = typeof findPath === 'function' ? findPath(startNode, endNode) : null;
-                if (route) {
+                
+                let targets = entities.filter(e => ['house', 'office', 'supermarket', 'school', 'factory'].includes(e.type) && !e.isBurned && !e.fireLevel);
+                let targetBuilding = targets.length > 0 ? targets[Math.floor(Math.random() * targets.length)] : null;
+                
+                if (targetBuilding) {
                     cars.push({
                         id: carIdCounter++, type: 'rioter', color: '#c0392b',
-                        home: startNode, target: endNode, path: route, pathIndex: 0, progress: 0,
-                        state: 'rioting', waitTimer: 0, offsetX: (Math.random()-0.5)*gridSize*0.5, offsetY: (Math.random()-0.5)*gridSize*0.5,
-                        angle: 0, realX: startNode.x + gridSize/2, realY: startNode.y + gridSize/2,
-                        currentSpeed: 0, stuckTimer: 0
+                        realX: startNode.x + gridSize/2, realY: startNode.y + gridSize/2,
+                        targetEnt: targetBuilding, 
+                        state: 'rioting_foot',     
+                        currentSpeed: 0.5 + Math.random() * 0.8, 
+                        path: null
                     });
                 }
             }
         }
 
+        
         rioters.forEach(r => {
-            if (Math.random() < 0.002) {  
-                let nearby = entities.filter(e => 
-                    ['house', 'office', 'supermarket', 'school'].includes(e.type) && 
-                    !e.isBurned && !e.fireLevel && 
-                    Math.abs(e.x + gridSize/2 - r.realX) < gridSize * 2.5 && 
-                    Math.abs(e.y + gridSize/2 - r.realY) < gridSize * 2.5
-                );
-                if (nearby.length > 0) {
-                    let target = nearby[Math.floor(Math.random() * nearby.length)];
-                    target.fireLevel = 1; target.fireTimer = 0;
-                    if (typeof spawnDustParticles === 'function') spawnDustParticles(target.x, target.y, 15, '#e74c3c', gridSize);
+            
+            if (!r.targetEnt || r.targetEnt.isBurned || r.targetEnt.fireLevel > 0) {
+                let targets = entities.filter(e => ['house', 'office', 'supermarket', 'school', 'factory'].includes(e.type) && !e.isBurned && !e.fireLevel);
+                if (targets.length > 0) r.targetEnt = targets[Math.floor(Math.random() * targets.length)];
+                else r.targetEnt = null;
+            }
+
+            if (r.targetEnt) {
+                
+                let dx = (r.targetEnt.x + gridSize/2) - r.realX;
+                let dy = (r.targetEnt.y + gridSize/2) - r.realY;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+
+                if (dist < gridSize / 2) {
+                    
+                    r.targetEnt.fireLevel = 1; 
+                    r.targetEnt.fireTimer = 0;
+                    if (typeof spawnDustParticles === 'function') spawnDustParticles(r.targetEnt.x, r.targetEnt.y, 25, '#e74c3c', gridSize);
+                    if (typeof playSFX === 'function') playSFX('fire', 0.5);
+                    r.targetEnt = null; 
+                } else {
+                    
+                    r.realX += (dx / dist) * r.currentSpeed;
+                    r.realY += (dy / dist) * r.currentSpeed;
                 }
+            } else {
+                
+                r.realX += (Math.random() - 0.5) * 2;
+                r.realY += (Math.random() - 0.5) * 2;
             }
         });
     } else {
+        
         for (let i = cars.length - 1; i >= 0; i--) {
             if (cars[i].type === 'rioter') {
                 if (typeof spawnDustParticles === 'function') spawnDustParticles(cars[i].realX, cars[i].realY, 15, '#ecf0f1', gridSize/2);
@@ -260,7 +278,11 @@ function updateAndDrawTornadoes(ctx, entities, cars, gridSize) {
         entities.forEach(ent => {
             if (!ent.isBurned && ent.type !== 'waterPump') { 
                 const dist = Math.sqrt(Math.pow((ent.x + gridSize/2) - t.x, 2) + Math.pow((ent.y + gridSize/2) - t.y, 2));
-                if (dist < t.radius) { ent.isBurned = true; ent.fireLevel = 0; ent.color = '#34495e'; if (typeof spawnDustParticles === 'function') spawnDustParticles(ent.x, ent.y, 40, '#2c3e50', gridSize); }
+                
+                if (dist < t.radius) { 
+                    ent.isBurned = true; ent.fireLevel = 0; ent.color = '#34495e'; 
+                    if (typeof spawnDustParticles === 'function') spawnDustParticles(ent.x, ent.y, 40, '#2c3e50', gridSize); 
+                }
             }
         });
 
