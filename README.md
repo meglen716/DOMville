@@ -4,7 +4,7 @@ Created by Meglen (© 2026)
 
 A lightweight, fully-featured city-building simulation built entirely from scratch using vanilla HTML5 Canvas, CSS, and JavaScript.
 
-🌟 Key Features
+=== Key Features ===
 Dynamic Zoning & Growth: Zone residential, commercial, industrial, and agricultural areas. Watch houses level up based on land value and access to utilities.
 
 Deep Traffic Simulation: A functioning road network featuring pathfinding, traffic lights, roundabouts, and right-of-way logic. Watch citizens drive to work, buses run routes, and delivery trucks restock supermarkets.
