@@ -1,6 +1,6 @@
+// zoning.js
 
-
-
+// zoning.js
 
 const ZONE_PROPS = {
     office: { color: '#3498db', nightLight: 'rgba(200, 230, 255, 0.7)', capacity: 10 }, 
@@ -11,7 +11,7 @@ const ZONE_PROPS = {
     fireStation: { color: '#d35400', nightLight: 'fire_flash', capacity: 99 },
     powerPlant: { color: '#7f8c8d', nightLight: 'rgba(241, 196, 15, 0.5)', capacity: 99 },
     waterPump: { color: '#2980b9', nightLight: 'rgba(52, 152, 219, 0.5)', capacity: 99 },
-    
+    // --- NEW: Park Properties ---
     park: { color: '#2ecc71', nightLight: null, capacity: 0 } 
 };
 
@@ -22,7 +22,7 @@ function drawZone(ctx, entity, gridSize, nightMode, currentOccupancy) {
     ctx.fillStyle = props.color;
     ctx.fillRect(entity.x + 4, entity.y + 4, gridSize - 8, gridSize - 8);
 
-    
+    // --- Special Icon & Visual Drawing ---
     if (entity.type === 'hospital') {
         ctx.fillStyle = 'white';
         ctx.fillRect(entity.x + gridSize/2 - 3, entity.y + 12, 6, gridSize - 24);
@@ -42,7 +42,7 @@ function drawZone(ctx, entity, gridSize, nightMode, currentOccupancy) {
         ctx.fillText('💧', entity.x + gridSize/2, entity.y + gridSize/2);
     }
     else if (entity.type === 'park') {
-        
+        // --- NEW: Draw 3 little trees for the park ---
         ctx.fillStyle = '#27ae60';
         ctx.beginPath();
         ctx.arc(entity.x + gridSize/2 - 6, entity.y + gridSize/2 + 4, 8, 0, Math.PI*2);
@@ -51,7 +51,7 @@ function drawZone(ctx, entity, gridSize, nightMode, currentOccupancy) {
         ctx.fill();
     }
 
-    
+    // Capacity Bar
     if (currentOccupancy !== undefined && ['office', 'supermarket', 'school'].includes(entity.type)) {
         const fillPercentage = currentOccupancy / props.capacity;
         const barWidth = gridSize - 16;
@@ -60,14 +60,14 @@ function drawZone(ctx, entity, gridSize, nightMode, currentOccupancy) {
     }
 }
 
-
+// --- NEW: Universal Fire Animation ---
 function drawFireAnimation(ctx, ent, gridSize) {
     if (!ent.fireLevel || ent.fireLevel <= 0) return;
     
     const time = Date.now();
     ctx.save();
     
-    
+    // Draw multiple overlapping flames based on the fire level
     const flameCount = ent.fireLevel * 3; 
     for (let i = 0; i < flameCount; i++) {
         const flickerX = Math.sin(time / 100 + i) * 3;
@@ -80,7 +80,7 @@ function drawFireAnimation(ctx, ent, gridSize) {
         ctx.beginPath();
         ctx.moveTo(baseX - 6, baseY);
         ctx.lineTo(baseX + 6, baseY);
-        ctx.lineTo(baseX + flickerX, baseY - 15 - flickerY - (ent.fireLevel * 5)); 
+        ctx.lineTo(baseX + flickerX, baseY - 15 - flickerY - (ent.fireLevel * 5)); // Higher level = taller flames
         ctx.fill();
     }
     ctx.restore();

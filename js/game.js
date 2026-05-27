@@ -1,8 +1,21 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-let currentTool = 'house';
+// ==========================================
+// 1. GAME STATE & CONSTANTS
+// ==========================================
+window.currentTool = 'house';
 let selectedEntity = null; 
+let currentHover = { x: null, y: null }; 
+
+// Rebuild State
+let isDraggingRebuild = false;
+let rebuildStart = { x: null, y: null };
+let rebuildCurrent = { x: null, y: null };
+
+// Settings State
+window.showBuildingOutlines = false; 
+window.gameIsMuted = false;
 
 const gridSize = 40;
 const WORLD_SIZE = 4000; 
@@ -28,7 +41,8 @@ let currentTaxRate = 1.0;
 
 const BUILDING_COSTS = {
     powerPlant: 2000, waterPump: 1500, house: 50, road: 10, bridge: 50, tunnel: 80, trafficLight: 100, roundabout: 300, busStop: 200,
-    office: 500, supermarket: 400, school: 800, policeStation: 1000, hospital: 1500, fireStation: 1200, park: 250, trainStation: 2500, trainTrack: 25,
+    office: 500, supermarket: 400, school: 800, policeStation: 1000, hospital: 1500, fireStation: 1200, park: 250, 
+    trainStation: 2000, trainTrack: 25, train: 500,
     factory: 1200, farm: 600
 };
 
@@ -37,6 +51,7 @@ const MAINTENANCE_COSTS = {
     factory: 100, farm: 30
 };
 
+// --- ECONOMY FUNCTIONS ---
 function spendFunds(amount) {
     if (typeof cityFunds !== 'undefined') { cityFunds -= amount; }
     else { window.cityFunds = (window.cityFunds || 20000) - amount; }
@@ -46,35 +61,29 @@ function spendFunds(amount) {
 function refund(type) {
     const cost = BUILDING_COSTS[type] || 0;
     if (cost > 0) {
-        const refundAmount = Math.floor(cost / 2); 
+        const refundAmount = Math.floor(cost / 2); // 50% cash back
         if (typeof cityFunds !== 'undefined') { cityFunds += refundAmount; }
         else { window.cityFunds = (window.cityFunds || 20000) + refundAmount; }
-        
-        if (typeof logActivity === 'function') {
-            logActivity(`Refunded $${refundAmount} for demolished ${type}.`, "info");
-        }
+        if (typeof logActivity === 'function') logActivity(`Refunded $${refundAmount} for demolished ${type}.`, "info");
         updateHUD();
     }
 }
 
+// --- ACTIVITY LOGGER ---
 function logActivity(message, type = 'info') {
     const list = document.getElementById('activity-list');
     if (!list) return;
 
     const li = document.createElement('li');
     li.className = `log-${type}`;
-    
     let timeStr = "00:00";
     if (typeof gameClock !== 'undefined') {
-        let hrs = Math.floor(gameClock); 
-        let mins = Math.floor((gameClock - hrs) * 60);
+        let hrs = Math.floor(gameClock); let mins = Math.floor((gameClock - hrs) * 60);
         timeStr = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
     }
-
     li.innerHTML = `<span class="log-time">[${timeStr}]</span> ${message}`;
     list.insertBefore(li, list.firstChild);
-
-    if (list.children.length > 50) { list.removeChild(list.lastChild); }
+    if (list.children.length > 50) list.removeChild(list.lastChild); 
 }
 
 const logHeader = document.getElementById('activity-log-header');
@@ -96,6 +105,9 @@ function isRoad(gridX, gridY) {
     return isNormalRoad || isLiveDrawing || isRoundabout;
 }
 
+// ==========================================
+// 2. SETUP, AUTO-SAVE, UI & SHORTCUTS
+// ==========================================
 function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; clampCamera(); }
 window.addEventListener('resize', resize); resize();
 
@@ -128,7 +140,9 @@ function saveGame() {
             clock: typeof gameClock !== 'undefined' ? gameClock : 8,
             day: typeof gameDay !== 'undefined' ? gameDay : 0,
             weather: typeof currentWeather !== 'undefined' ? currentWeather : 'CLEAR',
-            isMuted: typeof window.gameIsMuted !== 'undefined' ? window.gameIsMuted : false
+            isMuted: window.gameIsMuted,
+            showOutlines: window.showBuildingOutlines,
+            trains: typeof activeTrains !== 'undefined' ? activeTrains : []
         };
         localStorage.setItem('miniCitySave', JSON.stringify(saveData));
     } catch (error) { console.error("Auto-save failed:", error); }
@@ -140,7 +154,10 @@ function loadGame() {
         try {
             const saveData = JSON.parse(saved);
             
-            if (typeof terrainMap !== 'undefined' && saveData.terrain) { terrainMap.clear(); saveData.terrain.forEach(([key, value]) => terrainMap.set(key, value)); }
+            if (typeof terrainMap !== 'undefined' && saveData.terrain) { 
+                terrainMap.clear(); 
+                saveData.terrain.forEach(([key, value]) => terrainMap.set(key, value)); 
+            }
             if (typeof renderTerrainCache === 'function') renderTerrainCache(WORLD_SIZE, WORLD_SIZE, gridSize);
 
             entities.length = 0;
@@ -154,6 +171,10 @@ function loadGame() {
             trainTracks.length = 0; saveData.trainTracks?.forEach(t => trainTracks.push(t));
 
             cars.length = 0; carIdCounter = 0;
+            if (typeof activeTrains !== 'undefined') {
+                activeTrains.length = 0; 
+                if (saveData.trains) saveData.trains.forEach(t => activeTrains.push(t));
+            }
             
             if (saveData.funds !== undefined) { 
                 if (typeof cityFunds !== 'undefined') cityFunds = saveData.funds; 
@@ -167,8 +188,14 @@ function loadGame() {
 
             if (saveData.isMuted !== undefined) {
                 window.gameIsMuted = saveData.isMuted;
-                const muteBtn = document.getElementById('mute-btn');
-                if (muteBtn) muteBtn.innerText = window.gameIsMuted ? "Unmute" : "Mute";
+                const soundToggle = document.getElementById('sound-toggle');
+                if (soundToggle) soundToggle.checked = !window.gameIsMuted;
+            }
+
+            if (saveData.showOutlines !== undefined) {
+                window.showBuildingOutlines = saveData.showOutlines;
+                const outlineToggle = document.getElementById('outline-toggle');
+                if (outlineToggle) outlineToggle.checked = window.showBuildingOutlines;
             }
 
             camera.x = (window.innerWidth - WORLD_SIZE) / 2; camera.y = (window.innerHeight - WORLD_SIZE) / 2;
@@ -180,42 +207,38 @@ function loadGame() {
 
 loadGame();
 
-document.getElementById('new-game-btn').addEventListener('click', () => { if (confirm("Are you sure you want to start a new city? All progress will be lost!")) { localStorage.removeItem('miniCitySave'); location.reload(); } });
-
 window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
+    
+    // 'D' for Demolish
     if (e.key.toLowerCase() === 'd') {
         const demToggle = document.getElementById('demolish-toggle');
         if (demToggle) demToggle.click(); 
     }
+    
+    // 'R' for Rebuild
+    if (e.key.toLowerCase() === 'r') {
+        const rebToggle = document.getElementById('rebuild-toggle');
+        if (rebToggle) rebToggle.click(); 
+    }
 
     if (e.key === 'Escape') {
-        currentTool = null;
+        window.currentTool = null;
         document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
         const demToggle = document.getElementById('demolish-toggle');
-        if (demToggle && demToggle.checked) demToggle.checked = false;
+        const rebToggle = document.getElementById('rebuild-toggle');
+        if (demToggle) demToggle.checked = false;
+        if (rebToggle) rebToggle.checked = false;
     }
 });
 
-const demToggle = document.getElementById('demolish-toggle');
-if (demToggle) {
-    demToggle.addEventListener('change', (e) => {
-        if (e.target.checked) {
-            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-            currentTool = 'delete';
-        } else {
-            currentTool = null;
-        }
-    });
-}
-
+// --- SMART TOOLTIPS ---
 function updateTooltips() {
     const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : (window.cityFunds || 0);
 
     document.querySelectorAll('.tool-btn').forEach(btn => {
         const toolName = btn.dataset.tool; 
-        if (toolName === 'delete' || toolName === 'inspect') return;
+        if (toolName === 'delete' || toolName === 'inspect' || toolName === 'rebuild') return;
         
         const cost = BUILDING_COSTS[toolName] || 0; 
         
@@ -224,7 +247,7 @@ function updateTooltips() {
             btn.setAttribute('data-tooltip', `Not enough funds! ($${cost})`);
             if (btn.classList.contains('active')) {
                 btn.classList.remove('active');
-                currentTool = null;
+                window.currentTool = null;
             }
             return;
         }
@@ -241,10 +264,8 @@ function updateTooltips() {
             else if (toolName === 'supermarket') estIncome = Math.floor(15 * currentTaxRate);
             else if (toolName === 'factory') estIncome = Math.floor(25 * currentTaxRate);
             else if (toolName === 'farm') estIncome = Math.floor(10 * currentTaxRate);
-            
             if (estIncome > 0) tooltipText += ` | Est. Yield: +$${estIncome}`;
         }
-        
         btn.setAttribute('data-tooltip', tooltipText); 
     });
 }
@@ -254,18 +275,17 @@ updateTooltips();
 
 document.querySelectorAll('.tool-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
-        if (e.target.id === 'new-game-btn') return;
-        
         if (btn.classList.contains('locked-tool')) return;
         
-        if (demToggle && demToggle.checked) {
-            demToggle.checked = false;
-        }
+        const demToggle = document.getElementById('demolish-toggle');
+        const rebToggle = document.getElementById('rebuild-toggle');
+        if (demToggle) demToggle.checked = false;
+        if (rebToggle) rebToggle.checked = false;
 
         const clickedTool = e.target.dataset.tool;
         document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active'); 
-        currentTool = clickedTool;
+        window.currentTool = clickedTool;
     });
 });
 
@@ -282,7 +302,7 @@ document.querySelectorAll('.category-btn').forEach(btn => {
             const panel = document.getElementById(targetPanelId);
             if (panel) panel.classList.add('active-panel');
         } else {
-            currentTool = null;
+            window.currentTool = null;
             document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
         }
     });
@@ -315,20 +335,16 @@ function updateInfoPanel() {
         html += `<div class="info-stat">👥 Density: x${(selectedEntity.densityMult || 1.0).toFixed(1)}</div>`;
         html += `<div class="info-stat">💎 Value: ${selectedEntity.landValue ? Math.floor(selectedEntity.landValue) : 30}%</div>`;
         html += `<div class="info-stat">📈 Growth: ${selectedEntity.growth ? Math.floor(selectedEntity.growth) : 0} pts</div>`;
-        
         yieldAmount = Math.floor((10 * (selectedEntity.level || 1) * (selectedEntity.densityMult || 1.0)) * currentTaxRate);
-        
     } else if (['office', 'supermarket', 'school', 'factory', 'farm'].includes(selectedEntity.type)) {
         const occ = typeof getOccupancy === 'function' ? getOccupancy(selectedEntity) : 0;
         const cap = typeof ZONE_PROPS !== 'undefined' && ZONE_PROPS[selectedEntity.type] ? ZONE_PROPS[selectedEntity.type].capacity : 10;
         html += `<div class="info-stat">👥 Usage: ${occ}/${cap}</div>`;
-        
         if (selectedEntity.type === 'supermarket') {
             const stock = selectedEntity.stockLevel || 0;
             const stockColor = stock > 50 ? '#2ecc71' : (stock > 20 ? '#f1c40f' : '#e74c3c');
             html += `<div class="info-stat">📦 Stock: <span style="color:${stockColor}; font-weight:bold;">${Math.floor(stock)}%</span></div>`;
         }
-
         if (selectedEntity.type !== 'school') {
             const multiplier = selectedEntity.type === 'factory' ? 2.5 : (selectedEntity.type === 'office' ? 2.0 : 1.5);
             yieldAmount = Math.floor(occ * multiplier * currentTaxRate);
@@ -350,34 +366,14 @@ function updateInfoPanel() {
 
     if (selectedEntity.fireLevel > 0) html += `<div class="info-stat bad">🔥 ON FIRE! (${Math.floor(selectedEntity.fireLevel)})</div>`;
     if (selectedEntity.isAbandoned) html += `<div class="info-stat bad">👻 ABANDONED</div>`;
-    
-    if (selectedEntity.isBurned) {
-        if (selectedEntity.isRebuilding) {
-            
-            let currentDay = typeof gameDay !== 'undefined' ? gameDay : 0;
-            let currentHour = typeof gameClock !== 'undefined' ? gameClock : 0;
-            let absoluteCurrentTime = (currentDay * 24) + currentHour;
-            let hoursLeft = Math.max(0, selectedEntity.rebuildTargetTime - absoluteCurrentTime);
-            
-            html += `<div class="info-stat">🚧 <span style="color:#f1c40f; font-weight:bold;">Rebuilding... (${Math.ceil(hoursLeft)}h)</span></div>`;
-        } else {
-            html += `<div class="info-stat bad">☠️ DESTROYED</div>`;
-            const cost = BUILDING_COSTS[selectedEntity.type] || 0;
-            html += `<button id="rebuild-btn" style="margin-top:12px; width:100%; padding:8px; background-color:#2c3e50; color:#ecf0f1; border:1px solid #7f8c8d; border-radius:4px; cursor:pointer; font-family:sans-serif; transition: 0.2s;">🛠️ Rebuild ($${cost})</button>`;
-        }
-    }
-    
+    if (selectedEntity.isBurned) html += `<div class="info-stat bad">☠️ DESTROYED</div>`;
     content.innerHTML = html;
 }
 
 function getWeatherEmoji(status) {
     switch(status.toUpperCase()) {
-        case 'CLEAR': return '☀️';
-        case 'RAIN':  return '🌧️';
-        case 'STORM': return '⛈️';
-        case 'CLOUDY': return '☁️';
-        case 'SNOW':  return '❄️';
-        default:      return '🌡️';
+        case 'CLEAR': return '☀️'; case 'RAIN': return '🌧️'; case 'STORM': return '⛈️';
+        case 'CLOUDY': return '☁️'; case 'SNOW': return '❄️'; default: return '🌡️';
     }
 }
 
@@ -406,21 +402,16 @@ function updateHUD() {
 
     if (typeof getWeatherState === 'function' && weatherDisplay) { 
         let status = getWeatherState().toUpperCase(); 
-        let emoji = getWeatherEmoji(status);
-        weatherDisplay.innerText = `${emoji} ${status}`; 
-
-        if (status === 'STORM') { 
-            weatherDisplay.style.color = '#f1c40f'; 
-            weatherDisplay.style.fontWeight = 'bold';
-        } else { 
-            weatherDisplay.style.color = '#ecf0f1'; 
-            weatherDisplay.style.fontWeight = 'normal';
-        } 
+        weatherDisplay.innerText = `${getWeatherEmoji(status)} ${status}`; 
+        if (status === 'STORM') { weatherDisplay.style.color = '#f1c40f'; weatherDisplay.style.fontWeight = 'bold'; } 
+        else { weatherDisplay.style.color = '#ecf0f1'; weatherDisplay.style.fontWeight = 'normal'; } 
     }
-
     updateTooltips();
 }
 
+// ==========================================
+// 3. CORE LOGIC: ERASER 
+// ==========================================
 function performDeletion(clientX, clientY) {
     const { gridX, gridY } = getGridCoords(clientX, clientY);
     let deletedSomething = false;
@@ -473,35 +464,111 @@ function performDeletion(clientX, clientY) {
     }
 }
 
+// --- REBUILD LOGIC ---
+function processRebuildArea(start, end, gridSize, entities) {
+    const minGridX = Math.min(start.x, end.x);
+    const maxGridX = Math.max(start.x, end.x);
+    const minGridY = Math.min(start.y, end.y);
+    const maxGridY = Math.max(start.y, end.y);
+
+    let totalCost = 0;
+    let rebuiltCount = 0;
+
+    for (let i = 0; i < entities.length; i++) {
+        let ent = entities[i];
+        
+        // Check if the building is inside the blue drag box
+        if (ent.x >= minGridX && ent.x <= maxGridX && ent.y >= minGridY && ent.y <= maxGridY) {
+            
+            // Only rebuild buildings that are ruined or abandoned
+            if (ent.isBurned || ent.isAbandoned) {
+                let cost = BUILDING_COSTS[ent.type] || 100;
+                let currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : window.cityFunds;
+                
+                // Do we have enough money for this specific building?
+                if (currentFunds >= cost) {
+                    spendFunds(cost); // Deducts the money and updates HUD
+                    
+                    // Restore the building to working order!
+                    ent.isBurned = false;
+                    ent.isAbandoned = false;
+                    ent.fireLevel = 0;
+                    ent.hasEmergency = false;
+                    
+                    // If it's a house, reset it to level 1 so it has to grow again
+                    if (ent.type === 'house') {
+                        ent.level = 1;
+                        ent.growth = 0;
+                        ent.densityMult = 1.0;
+                    }
+                    
+                    // Add a nice visual pop!
+                    if (typeof spawnDustParticles === 'function') {
+                        spawnDustParticles(ent.x, ent.y, 20, '#3498db', gridSize);
+                    }
+                    
+                    totalCost += cost;
+                    rebuiltCount++;
+                } else {
+                    // Out of money! Stop the loop so remaining buildings stay ruined.
+                    if (typeof logActivity === 'function') {
+                        logActivity(`Rebuild halted! Not enough funds for ${ent.type}.`, "bad");
+                    }
+                    break; 
+                }
+            }
+        }
+    }
+    
+    // Log the success to the activity feed
+    if (rebuiltCount > 0 && typeof logActivity === 'function') {
+        logActivity(`Rebuilt ${rebuiltCount} structure(s) for $${totalCost}.`, "info");
+    }
+}
+
+// ==========================================
+// 4. UNIFIED INPUT HANDLER (MOUSE & TOUCH)
+// ==========================================
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-canvas.addEventListener('mousedown', (e) => {
-    const minimapSize = 200; const padding = 20; const mapX = padding; const mapY = canvas.height - minimapSize - padding - 80;
+function handleInputStart(e, clientX, clientY, isRightClick) {
+    if (isRightClick) {
+        window.currentTool = null;
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+        const demToggle = document.getElementById('demolish-toggle');
+        const rebToggle = document.getElementById('rebuild-toggle');
+        if (demToggle) demToggle.checked = false;
+        if (rebToggle) rebToggle.checked = false;
+        
+        // Grab the camera for panning!
+        isPanning = true; 
+        startPan = { x: clientX - camera.x, y: clientY - camera.y };
+        return;
+    }
 
-    if (e.clientX >= mapX && e.clientX <= mapX + minimapSize && e.clientY >= mapY && e.clientY <= mapY + minimapSize) {
-        const clickRatioX = (e.clientX - mapX) / minimapSize; const clickRatioY = (e.clientY - mapY) / minimapSize;
+    const minimapSize = 200; const padding = 20; const mapX = padding; const mapY = canvas.height - minimapSize - padding - 80;
+    if (clientX >= mapX && clientX <= mapX + minimapSize && clientY >= mapY && clientY <= mapY + minimapSize) {
+        const clickRatioX = (clientX - mapX) / minimapSize; const clickRatioY = (clientY - mapY) / minimapSize;
         camera.x = (canvas.width / 2) - ((clickRatioX * WORLD_SIZE) * camera.zoom); camera.y = (canvas.height / 2) - ((clickRatioY * WORLD_SIZE) * camera.zoom); clampCamera(); return; 
     }
 
-    if (e.button === 2) {
-        currentTool = null;
-        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-        const demToggle = document.getElementById('demolish-toggle');
-        if (demToggle && demToggle.checked) {
-            demToggle.checked = false;
-        }
-    }
+    if (e.button === 1) { isPanning = true; startPan = { x: clientX - camera.x, y: clientY - camera.y }; return; }
 
-    if (e.button === 1 || e.button === 2) { isPanning = true; startPan = { x: e.clientX - camera.x, y: e.clientY - camera.y }; return; }
-
-    const { gridX, gridY } = getGridCoords(e.clientX, e.clientY); 
+    const { gridX, gridY } = getGridCoords(clientX, clientY); 
     const terrainType = typeof getTerrainAt === 'function' ? getTerrainAt(gridX, gridY) : null;
-    
     const entityIndex = entities.findIndex(ent => ent.x === gridX && ent.y === gridY); 
     const panel = document.getElementById('info-panel');
 
-    if (currentTool === 'delete') { 
-        isDeleting = true; performDeletion(e.clientX, e.clientY); 
+    // Rebuild Logic
+    if (window.currentTool === 'rebuild') {
+        isDraggingRebuild = true;
+        rebuildStart = { x: gridX, y: gridY };
+        rebuildCurrent = { x: gridX, y: gridY };
+        return;
+    }
+
+    if (window.currentTool === 'delete') { 
+        isDeleting = true; performDeletion(clientX, clientY); 
         return; 
     }
 
@@ -515,40 +582,49 @@ canvas.addEventListener('mousedown', (e) => {
         if (panel) panel.classList.add('hidden'); 
     }
 
-    if (!currentTool) return; 
+    if (!window.currentTool) return; 
 
     const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : (window.cityFunds || 0);
 
-    if (['road', 'bridge', 'tunnel'].includes(currentTool)) {
+    if (['road', 'bridge', 'tunnel'].includes(window.currentTool)) {
         if (terrainType === 'ocean') return; 
-        
         const alreadyExists = isRoad(gridX, gridY);
         let dynamicType = 'road'; if (terrainType === 'water') dynamicType = 'bridge'; if (terrainType === 'mountain') dynamicType = 'tunnel';
         let cost = alreadyExists ? 0 : (BUILDING_COSTS[dynamicType] || 10);
-        
         if (currentFunds >= cost) { isDrawingRoad = true; currentRoadPath = [{ x: gridX, y: gridY, type: dynamicType }]; if (cost > 0) spendFunds(cost); }
-    } else if (currentTool === 'trainTrack') {
+    } else if (window.currentTool === 'trainTrack') {
         if (terrainType === 'ocean') return; 
-        
         const alreadyExists = trainTracks.some(path => path.some(n => n.x === gridX && n.y === gridY));
         let cost = alreadyExists ? 0 : BUILDING_COSTS['trainTrack'];
-        
         if (currentFunds >= cost) { isDrawingTrack = true; currentTrackPath = [{ x: gridX, y: gridY }]; if (cost > 0) spendFunds(cost); }
-    } else if (currentTool === 'trainStation') {
+    } else if (window.currentTool === 'trainStation') {
         if (terrainType !== null) return; if (isRoad(gridX, gridY)) return; 
         if (!trainStations.some(s => s.x === gridX && s.y === gridY)) {
-            if (typeof canBuildStation === 'function' && !canBuildStation(gridX, gridY, trainStations)) { alert("Train stations must be built further apart to be efficient!"); return; }
+            if (typeof canBuildStation === 'function' && !canBuildStation(gridX, gridY, trainStations)) { alert("Train stations must be built further apart!"); return; }
             let cost = BUILDING_COSTS['trainStation']; if (currentFunds >= cost) { trainStations.push({ x: gridX, y: gridY }); spendFunds(cost); }
         }
-    } else if (currentTool === 'waterPump') {
+    } else if (window.currentTool === 'train') {
+        let clickedTrackIndex = -1;
+        trainTracks.forEach((track, idx) => { if (track.some(n => n.x === gridX && n.y === gridY)) clickedTrackIndex = idx; });
+        if (clickedTrackIndex !== -1) {
+            if (trainStations.length === 0) { alert("You must build at least one Train Station before you can buy a Train!"); return; }
+            let cost = BUILDING_COSTS['train'];
+            if (currentFunds >= cost) {
+                if (typeof activeTrains !== 'undefined') {
+                    activeTrains.push({ id: Math.random(), lineIndex: clickedTrackIndex, pathIndex: 0, progress: 0.5, direction: 1, state: 'boarding', waitTimer: 120 });
+                }
+                spendFunds(cost);
+            }
+        } else { alert("Trains must be placed directly on a Train Track!"); }
+    } else if (window.currentTool === 'waterPump') {
         if (terrainType !== null) return; if (isRoad(gridX, gridY)) return; 
-        if (typeof isNearWater === 'function' && !isNearWater(gridX, gridY, gridSize)) { alert("Water Pumps must be built directly adjacent to a body of water or ocean!"); return; }
+        if (typeof isNearWater === 'function' && !isNearWater(gridX, gridY, gridSize)) { alert("Water Pumps must be built directly adjacent to water!"); return; }
         let cost = BUILDING_COSTS['waterPump'] || 1500; if (currentFunds >= cost) { entities.push({ type: 'waterPump', x: gridX, y: gridY }); spendFunds(cost); }
-    } else if (currentTool === 'trafficLight') {
+    } else if (window.currentTool === 'trafficLight') {
         if (isRoad(gridX, gridY) && !trafficLights.some(l => l.x === gridX && l.y === gridY)) {
             if (!roundabouts.some(r => r.x === gridX && r.y === gridY)) { let cost = BUILDING_COSTS['trafficLight'] || 100; if (currentFunds >= cost) { trafficLights.push({ x: gridX, y: gridY, state: 'H_G', timer: 0 }); spendFunds(cost); } }
         }
-    } else if (currentTool === 'roundabout') { 
+    } else if (window.currentTool === 'roundabout') { 
         if (isRoad(gridX, gridY) && !roundabouts.some(r => r.x === gridX && r.y === gridY)) {
             let cost = BUILDING_COSTS['roundabout'] || 300;
             if (currentFunds >= cost) {
@@ -556,66 +632,92 @@ canvas.addEventListener('mousedown', (e) => {
                 roundabouts.push({ x: gridX, y: gridY }); spendFunds(cost);
             }
         }
-    } else if (currentTool === 'busStop') {
+    } else if (window.currentTool === 'busStop') {
         if (isRoad(gridX, gridY) && !busStops.some(b => b.x === gridX && b.y === gridY)) { let cost = BUILDING_COSTS['busStop'] || 200; if (currentFunds >= cost) { busStops.push({ x: gridX, y: gridY }); spendFunds(cost); } }
-    } else if (currentTool === 'farm') {
+    } else if (window.currentTool === 'farm') {
         if (terrainType !== null) return; if (isRoad(gridX, gridY)) return; 
         if (typeof isNearWater === 'function' && !isNearWater(gridX, gridY, gridSize)) { alert("Farms require irrigation! Build them next to a water tile."); return; }
         let cost = BUILDING_COSTS['farm']; if (currentFunds >= cost) { entities.push({ type: 'farm', x: gridX, y: gridY }); spendFunds(cost); }
     } else {
         if (terrainType !== null) return; if (isRoad(gridX, gridY)) return; 
-        let cost = BUILDING_COSTS[currentTool] || 100;
+        let cost = BUILDING_COSTS[window.currentTool] || 100;
         if (currentFunds >= cost) {
-            const newEntity = { type: currentTool, x: gridX, y: gridY, color: currentTool === 'house' ? '#FF6B6B' : null };
-            if (currentTool === 'house') { newEntity.level = 1; newEntity.growth = 0; }
+            const newEntity = { type: window.currentTool, x: gridX, y: gridY, color: window.currentTool === 'house' ? '#FF6B6B' : null };
+            if (window.currentTool === 'house') { newEntity.level = 1; newEntity.growth = 0; }
             entities.push(newEntity); spendFunds(cost);
         }
     }
-});
+}
+
+canvas.addEventListener('mousedown', (e) => handleInputStart(e, e.clientX, e.clientY, e.button === 2));
+canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) { handleInputStart(e, e.touches[0].clientX, e.touches[0].clientY, false); } 
+    else if (e.touches.length === 2) { isPanning = true; startPan = { x: e.touches[0].clientX - camera.x, y: e.touches[0].clientY - camera.y }; }
+}, {passive: false});
 
 canvas.addEventListener('mousemove', (e) => {
     if (isPanning) { camera.x = e.clientX - startPan.x; camera.y = e.clientY - startPan.y; clampCamera(); return; }
+    
+    const { gridX, gridY } = getGridCoords(e.clientX, e.clientY);
+    currentHover.x = gridX; currentHover.y = gridY;
+
+    if (isDraggingRebuild && window.currentTool === 'rebuild') { rebuildCurrent = { x: gridX, y: gridY }; return; }
+    if (isDeleting && window.currentTool === 'delete') { performDeletion(e.clientX, e.clientY); return; }
+
     const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : (window.cityFunds || 0);
     
-    if (isDrawingRoad && ['road', 'bridge', 'tunnel'].includes(currentTool)) {
-        const { gridX, gridY } = getGridCoords(e.clientX, e.clientY);
+    if (isDrawingRoad && ['road', 'bridge', 'tunnel'].includes(window.currentTool)) {
         const lastNode = currentRoadPath[currentRoadPath.length - 1]; const dx = Math.abs(gridX - lastNode.x); const dy = Math.abs(gridY - lastNode.y);
-
         if ((dx === gridSize && dy === 0) || (dx === 0 && dy === gridSize)) {
             if (currentRoadPath.some(n => n.x === gridX && n.y === gridY)) return;
-
             const terrainType = typeof getTerrainAt === 'function' ? getTerrainAt(gridX, gridY) : null; if (terrainType === 'ocean') return;
-            
             const alreadyExists = isRoad(gridX, gridY);
             let dynamicType = 'road'; if (terrainType === 'water') dynamicType = 'bridge'; if (terrainType === 'mountain') dynamicType = 'tunnel';
             let cost = alreadyExists ? 0 : (BUILDING_COSTS[dynamicType] || 10);
-            
             if (currentFunds >= cost) { currentRoadPath.push({ x: gridX, y: gridY, type: dynamicType }); if (cost > 0) spendFunds(cost); }
         }
     }
-    if (isDrawingTrack && currentTool === 'trainTrack') {
-        const { gridX, gridY } = getGridCoords(e.clientX, e.clientY);
+    if (isDrawingTrack && window.currentTool === 'trainTrack') {
         const lastNode = currentTrackPath[currentTrackPath.length - 1]; const dx = Math.abs(gridX - lastNode.x); const dy = Math.abs(gridY - lastNode.y);
-
         if ((dx === gridSize && dy === 0) || (dx === 0 && dy === gridSize)) {
             if (currentTrackPath.some(n => n.x === gridX && n.y === gridY)) return;
-
             const terrainType = typeof getTerrainAt === 'function' ? getTerrainAt(gridX, gridY) : null; if (terrainType === 'ocean') return;
-            
             const alreadyExists = trainTracks.some(path => path.some(n => n.x === gridX && n.y === gridY));
             let cost = alreadyExists ? 0 : BUILDING_COSTS['trainTrack']; 
-            
             if (currentFunds >= cost) { currentTrackPath.push({ x: gridX, y: gridY }); if (cost > 0) spendFunds(cost); }
         }
     }
-    if (isDeleting && currentTool === 'delete') performDeletion(e.clientX, e.clientY);
 });
 
-window.addEventListener('mouseup', (e) => {
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault(); 
+    if (isPanning && e.touches.length > 0) { camera.x = e.touches[0].clientX - startPan.x; camera.y = e.touches[0].clientY - startPan.y; clampCamera(); return; }
+    
+    const { gridX, gridY } = getGridCoords(e.touches[0].clientX, e.touches[0].clientY);
+    if (isDraggingRebuild && window.currentTool === 'rebuild') { rebuildCurrent = { x: gridX, y: gridY }; }
+    if (isDeleting && window.currentTool === 'delete') performDeletion(e.touches[0].clientX, e.touches[0].clientY);
+}, {passive: false});
+
+canvas.addEventListener('mouseleave', () => { currentHover.x = null; currentHover.y = null; });
+
+canvas.addEventListener('mouseup', (e) => {
     if (e.button === 1 || e.button === 2) { isPanning = false; return; }
     if (isDrawingRoad) { isDrawingRoad = false; if (currentRoadPath.length > 1) roads.push([...currentRoadPath]); currentRoadPath = []; }
     if (isDrawingTrack) { isDrawingTrack = false; if (currentTrackPath.length > 1) trainTracks.push([...currentTrackPath]); currentTrackPath = []; }
     if (isDeleting) isDeleting = false;
+    
+    if (isDraggingRebuild && window.currentTool === 'rebuild') {
+        isDraggingRebuild = false;
+        if (typeof processRebuildArea === 'function') processRebuildArea(rebuildStart, rebuildCurrent, gridSize, entities);
+    }
+});
+
+canvas.addEventListener('touchend', () => {
+    isPanning = false; isDrawingRoad = false; isDrawingTrack = false; isDeleting = false;
+    if (isDraggingRebuild && window.currentTool === 'rebuild') {
+        isDraggingRebuild = false;
+        if (typeof processRebuildArea === 'function') processRebuildArea(rebuildStart, rebuildCurrent, gridSize, entities);
+    }
 });
 
 canvas.addEventListener('wheel', (e) => {
@@ -626,6 +728,9 @@ canvas.addEventListener('wheel', (e) => {
     camera.x += (worldPointerAfter.x - worldPointerBefore.x) * camera.zoom; camera.y += (worldPointerAfter.y - worldPointerBefore.y) * camera.zoom; clampCamera(); 
 }, { passive: false });
 
+// ==========================================
+// 5. RENDER HELPERS
+// ==========================================
 function drawMinimap(ctx) {
     const minimapSize = 200; const padding = 20; const mapX = padding; const mapY = canvas.height - minimapSize - padding - 80; const scale = minimapSize / WORLD_SIZE;
     ctx.fillStyle = 'rgba(15, 25, 40, 0.85)'; ctx.fillRect(mapX, mapY, minimapSize, minimapSize);
@@ -658,12 +763,14 @@ function drawMinimap(ctx) {
     ctx.restore();
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; 
-    ctx.font = '10px sans-serif';
-    ctx.textAlign = 'left';
+    ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
     ctx.fillText('Right-Click: Deselect Tool  •  D: Toggle Demolish', mapX, mapY + minimapSize + 16);
-    ctx.fillText('Middle/Right-Drag: Pan Camera  •  Scroll: Zoom', mapX, mapY + minimapSize + 28);
+    ctx.fillText('Drag: Pan Camera  •  Scroll/Pinch: Zoom', mapX, mapY + minimapSize + 28);
 }
 
+// ==========================================
+// 6. MAIN GAME LOOP
+// ==========================================
 function gameLoop() {
     if (isFirstFrame) { if (isNewGame) { if (typeof cityFunds !== 'undefined') cityFunds = 20000; else window.cityFunds = 20000; } isFirstFrame = false; }
 
@@ -711,43 +818,6 @@ function gameLoop() {
     if (taxTimer % 300 === 0) { saveGame(); }
 
     entities.forEach(ent => {
-        
-        if (ent.isRebuilding) {
-            let currentDay = typeof gameDay !== 'undefined' ? gameDay : 0;
-            let currentHour = typeof gameClock !== 'undefined' ? gameClock : 0;
-            let absoluteCurrentTime = (currentDay * 24) + currentHour;
-            
-            if (absoluteCurrentTime >= ent.rebuildTargetTime) {
-                
-                ent.isRebuilding = false;
-                ent.isBurned = false;
-                ent.fireLevel = 0; 
-                
-                if (ent.type === 'house') {
-                    ent.level = 1; 
-                    ent.densityMult = 1.0;
-                }
-                
-                if (typeof spawnDustParticles === 'function') {
-                    spawnDustParticles(ent.x, ent.y, 20, '#2ecc71', gridSize);
-                }
-                if (typeof logActivity === 'function') {
-                    logActivity(`Rebuild of ${ent.type} complete!`, "info");
-                }
-                
-                if (selectedEntity === ent) updateInfoPanel();
-            } else {
-                
-                ctx.fillStyle = 'rgba(241, 196, 15, 0.8)'; 
-                ctx.fillRect(ent.x + gridSize/4, ent.y + gridSize/4, gridSize/2, gridSize/2);
-                ctx.fillStyle = '#000'; 
-                ctx.font = 'bold 10px sans-serif'; 
-                ctx.textAlign = 'center'; 
-                ctx.fillText('🚧', ent.x + gridSize/2, ent.y + gridSize/2 + 4);
-            }
-        }
-        
-
         if (ent.driveway && (!isRoad(ent.driveway.x, ent.driveway.y))) { ent.driveway = null; ent.hasRoad = false; }
         if (!ent.driveway) {
             const dirs = [{dx:0, dy:-gridSize}, {dx:gridSize, dy:0}, {dx:0, dy:gridSize}, {dx:-gridSize, dy:0}];
@@ -757,28 +827,21 @@ function gameLoop() {
 
         if (ent.driveway) { ctx.strokeStyle = '#404040'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(ent.x + gridSize/2, ent.y + gridSize/2); ctx.lineTo(ent.driveway.x + gridSize/2, ent.driveway.y + gridSize/2); ctx.stroke(); }
 
-        if (ent.type === 'house') {
-            ctx.fillStyle = ent.color || '#FF6B6B'; ctx.beginPath(); const sizeMult = ent.level ? (ent.level * 0.2 + 0.6) : 0.8; const radius = (gridSize / 3) * sizeMult;
-            ctx.arc(ent.x + gridSize/2, ent.y + gridSize/2, radius, 0, Math.PI * 2); ctx.fill();
-            
-            if (ent.densityMult > 1.0 && !ent.isAbandoned && !ent.isBurned) { ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.arc(ent.x + gridSize/2 + radius*0.4, ent.y + gridSize/2 - radius*0.4, 4, 0, Math.PI * 2); ctx.fill(); }
-
-            if (ent.level > 1 && !ent.isAbandoned && !ent.isBurned) { ctx.fillStyle = ent.level === 3 ? '#f1c40f' : 'rgba(255,255,255,0.8)'; ctx.font = `bold 11px sans-serif`; ctx.textAlign = 'center'; ctx.fillText(`L${ent.level}`, ent.x + gridSize/2, ent.y + gridSize/2 + 4); }
-            if (nightMode && !ent.isAbandoned && !ent.isBurned && ent.hasPower !== false && ent.hasRoad !== false) { ctx.fillStyle = 'rgba(255, 255, 150, 0.8)'; ctx.fillRect(ent.x + gridSize/2 - 4, ent.y + gridSize/2 - 4, 8, 8); }
-            
-            if (ent.hasEmergency) { const time = Date.now(); if (time % 500 < 250) { ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(ent.x + gridSize/2, ent.y - 10, 8, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = 'white'; ctx.fillRect(ent.x + gridSize/2 - 1, ent.y - 14, 2, 8); ctx.fillRect(ent.x + gridSize/2 - 4, ent.y - 11, 8, 2); } }
-            if (ent.isAbandoned) { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.font = `bold 10px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('DEAD', ent.x + gridSize/2, ent.y + gridSize/2 + 4); }
-            if (ent.isBurned) { ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.font = `bold 10px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('RUIN', ent.x + gridSize/2, ent.y + gridSize/2 + 4); }
-        } else if (['factory', 'farm'].includes(ent.type)) {
-            if (typeof drawEconomyBuildings === 'function') drawEconomyBuildings(ctx, ent, gridSize, nightMode);
-            if (ent.isBurned) { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(ent.x, ent.y, gridSize, gridSize); ctx.fillStyle = 'white'; ctx.font = `bold 10px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('RUIN', ent.x + gridSize/2, ent.y + gridSize/2 + 4); }
-        } else {
-            let occ = 0; if (['office', 'supermarket', 'school', 'policeStation', 'hospital', 'fireStation'].includes(ent.type) && typeof getOccupancy === 'function') { occ = getOccupancy(ent); }
-            let wasNight = nightMode; if (ent.hasPower === false || ent.hasRoad === false) wasNight = false; 
-            if (typeof drawZone === 'function') drawZone(ctx, ent, gridSize, wasNight, occ);
-            
-            if (ent.isBurned) { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(ent.x, ent.y, gridSize, gridSize); ctx.fillStyle = 'white'; ctx.font = `bold 10px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('RUIN', ent.x + gridSize/2, ent.y + gridSize/2 + 4); }
+        const hasBlueprint = typeof BLUEPRINTS !== 'undefined' && BLUEPRINTS[ent.type];
+        if (hasBlueprint && typeof drawBuilding === 'function') {
+            drawBuilding(ctx, ent, gridSize, nightMode);
+        } else if (typeof drawZone === 'function') {
+            let occ = typeof getOccupancy === 'function' ? getOccupancy(ent) : 0;
+            drawZone(ctx, ent, gridSize, nightMode, occ);
         }
+
+        if (ent.type === 'house') {
+            if (ent.densityMult > 1.0 && !ent.isAbandoned && !ent.isBurned) { 
+                ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.arc(ent.x + gridSize/2 + 6, ent.y + gridSize/2 - 6, 4, 0, Math.PI * 2); ctx.fill(); 
+            }
+            if (ent.isAbandoned) { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.font = `bold 10px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('DEAD', ent.x + gridSize/2, ent.y + gridSize/2 + 4); }
+        }
+        if (ent.isBurned) { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(ent.x, ent.y, gridSize, gridSize); ctx.fillStyle = 'white'; ctx.font = `bold 10px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('RUIN', ent.x + gridSize/2, ent.y + gridSize/2 + 4); }
 
         if (['house', 'office', 'supermarket', 'school', 'policeStation', 'hospital', 'fireStation', 'powerPlant', 'waterPump', 'factory', 'farm'].includes(ent.type) && !ent.isAbandoned && !ent.isBurned) {
             const time = Date.now();
@@ -788,17 +851,43 @@ function gameLoop() {
                 else if (ent.hasWater === false) { ctx.fillStyle = '#3498db'; ctx.beginPath(); ctx.arc(ent.x + gridSize/2, ent.y - 5, 10, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('💧', ent.x + gridSize/2, ent.y - 1); }
             }
         }
+        if (ent.hasEmergency) { const time = Date.now(); if (time % 500 < 250) { ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(ent.x + gridSize/2, ent.y - 10, 8, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = 'white'; ctx.fillRect(ent.x + gridSize/2 - 1, ent.y - 14, 2, 8); ctx.fillRect(ent.x + gridSize/2 - 4, ent.y - 11, 8, 2); } }
         if (typeof drawFireAnimation === 'function') drawFireAnimation(ctx, ent, gridSize);
     });
 
     if (typeof manageTrains === 'function') { manageTrains(trainTracks, trainStations); }
     if (typeof updateAndDrawTrains === 'function') { updateAndDrawTrains(ctx, trainTracks, gridSize, nightMode); }
 
+    trainStations.forEach(station => {
+        station.type = 'trainStation'; 
+        if (typeof drawBuilding === 'function') {
+            drawBuilding(ctx, station, gridSize, nightMode);
+        }
+    });
+
     if (typeof updateAndDrawCars === 'function') updateAndDrawCars(ctx);
     if (typeof updateAndDrawParticles === 'function') updateAndDrawParticles(ctx);
     if (typeof drawNightOverlay === 'function') drawNightOverlay(ctx, WORLD_SIZE, WORLD_SIZE);
-    
     if (typeof updateAndDrawTornadoes === 'function') updateAndDrawTornadoes(ctx, entities, cars, gridSize);
+
+    // Rebuild Drag Box Visualizer
+    if (isDraggingRebuild && window.currentTool === 'rebuild') {
+        ctx.save();
+        const minX = Math.min(rebuildStart.x, rebuildCurrent.x); const maxX = Math.max(rebuildStart.x, rebuildCurrent.x) + gridSize;
+        const minY = Math.min(rebuildStart.y, rebuildCurrent.y); const maxY = Math.max(rebuildStart.y, rebuildCurrent.y) + gridSize;
+
+        ctx.fillStyle = 'rgba(52, 152, 219, 0.4)'; ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 / camera.zoom; ctx.setLineDash([4, 4]); ctx.lineDashOffset = -Date.now() / 30;
+        ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+        ctx.restore();
+    }
+
+    // Demolish Hover Visualizer
+    if (window.currentTool === 'delete' && currentHover.x !== null) {
+        ctx.save(); ctx.beginPath(); ctx.arc(currentHover.x + gridSize / 2, currentHover.y + gridSize / 2, gridSize / 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(231, 76, 60, 0.4)'; ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 / camera.zoom; ctx.setLineDash([4, 4]); ctx.lineDashOffset = -Date.now() / 30; ctx.stroke(); ctx.restore();
+    }
 
     if (selectedEntity) {
         ctx.save(); ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 3 / camera.zoom; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -Date.now() / 30; ctx.strokeRect(selectedEntity.x, selectedEntity.y, gridSize, gridSize); ctx.restore();
@@ -826,7 +915,6 @@ function gameLoop() {
     }
 
     drawMinimap(ctx);
-
     ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.font = '12px sans-serif'; ctx.fillText('© Meglen 2026', canvas.width - 100, canvas.height - 5);
     requestAnimationFrame(gameLoop);
 }
@@ -835,94 +923,121 @@ window.addEventListener('DOMContentLoaded', () => {
     const exportBtn = document.getElementById('export-game-btn');
     const importBtn = document.getElementById('import-game-btn');
 
+    // --- EXPORT TO .TXT FILE ---
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
             if (typeof saveGame === 'function') saveGame(); 
             const savedData = localStorage.getItem('miniCitySave');
             
             if (savedData) {
+                // Keep the exact same encryption formatting
                 const encodedData = btoa(encodeURIComponent(savedData));
+                
+                // Create a Blob containing the text
                 const blob = new Blob([encodedData], { type: 'text/plain' });
                 const url = URL.createObjectURL(blob);
                 
+                // Generate a filename with today's date
+                const dateStr = new Date().toISOString().split('T')[0];
+                const fileName = `DOMville_Save_${dateStr}.txt`;
+                
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'DOMville_city_.txt'; 
+                a.download = fileName;
                 document.body.appendChild(a);
                 a.click();
                 
+                // Clean up
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
+                
+                if (typeof logActivity === 'function') logActivity(`City exported as ${fileName}`, "info");
             } else {
                 alert("No save data found to export.");
             }
         });
     }
 
+    // --- IMPORT FROM .TXT FILE ---
     if (importBtn) {
         importBtn.addEventListener('click', () => {
+            // Create a hidden file input on the fly
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
-            fileInput.accept = '.txt'; 
+            fileInput.accept = '.txt';
             
-            fileInput.addEventListener('change', (e) => {
+            // Listen for when the user selects a file
+            fileInput.onchange = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-
-                const reader = new FileReader();
                 
+                const reader = new FileReader();
                 reader.onload = (event) => {
                     const inputData = event.target.result.trim();
                     if (!inputData) return;
                     
                     try {
+                        // Decrypt using the exact same formatting
                         const decodedData = decodeURIComponent(atob(inputData));
-                        JSON.parse(decodedData); 
-                        
-                        localStorage.setItem('miniCitySave', decodedData);
-                        location.reload(); 
-                    } catch (error) {
-                        alert("Invalid or corrupted save file.");
-                        console.error("Import error:", error);
+                        let saveData = JSON.parse(decodedData); 
+
+                        // DYNAMIC MIGRATION (In case of importing old 60x60 saves)
+                        let minInterval = Infinity;
+                        if (saveData.terrain && saveData.terrain.length > 0) {
+                            saveData.terrain.forEach(([key]) => {
+                                const coords = key.split(',');
+                                if (coords.length === 2) {
+                                    const x = Number(coords[0]); const y = Number(coords[1]);
+                                    if (x > 0 && x < minInterval) minInterval = x;
+                                    if (y > 0 && y < minInterval) minInterval = y;
+                                }
+                            });
+                        }
+
+                        if (minInterval > 0 && minInterval !== Infinity && minInterval !== gridSize) {
+                            const scale = gridSize / minInterval; 
+                            const offset = Math.floor(((WORLD_SIZE - (WORLD_SIZE * scale)) / 2) / gridSize) * gridSize;
+                            
+                            if (saveData.terrain) {
+                                saveData.terrain = saveData.terrain.map(([key, value]) => {
+                                    const parts = key.split(',');
+                                    if (parts.length === 2) return [`${(Number(parts[0]) * scale) + offset},${(Number(parts[1]) * scale) + offset}`, value];
+                                    return [key, value];
+                                });
+                            }
+
+                            const scaleItems = (arr) => {
+                                if (!arr) return;
+                                arr.forEach(item => {
+                                    if (item.x !== undefined) item.x = (item.x * scale) + offset;
+                                    if (item.y !== undefined) item.y = (item.y * scale) + offset;
+                                    if (item.driveway) { item.driveway.x = (item.driveway.x * scale) + offset; item.driveway.y = (item.driveway.y * scale) + offset; }
+                                });
+                            };
+                            const scalePaths = (arr) => { if (arr) arr.forEach(path => scaleItems(path)); };
+
+                            scaleItems(saveData.entities); scaleItems(saveData.trafficLights); scaleItems(saveData.roundabouts);
+                            scaleItems(saveData.busStops); scaleItems(saveData.trainStations);
+                            scalePaths(saveData.roads); scalePaths(saveData.trainTracks);
+                        }
+
+                        // Save to local storage and reload the game!
+                        localStorage.setItem('miniCitySave', JSON.stringify(saveData));
+                        location.reload();
+                    } catch (error) { 
+                        console.error(error);
+                        alert("Invalid or corrupted save file."); 
                     }
                 };
                 
+                // Read the file as text
                 reader.readAsText(file);
-            });
+            };
             
+            // Trigger the file browser dialog
             fileInput.click();
         });
     }
 });
 
-document.getElementById('info-content').addEventListener('click', (e) => {
-    if (e.target.id === 'rebuild-btn') {
-        if (!selectedEntity || !selectedEntity.isBurned || selectedEntity.isRebuilding) return;
-
-        const cost = BUILDING_COSTS[selectedEntity.type] || 0;
-        const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : window.cityFunds;
-
-        if (currentFunds >= cost) {
-            spendFunds(cost);
-            
-            
-            let currentDay = typeof gameDay !== 'undefined' ? gameDay : 0;
-            let currentHour = typeof gameClock !== 'undefined' ? gameClock : 0;
-            let absoluteCurrentTime = (currentDay * 24) + currentHour;
-            
-            
-            selectedEntity.isRebuilding = true;
-            selectedEntity.rebuildTargetTime = absoluteCurrentTime + 24; 
-            
-            if (typeof logActivity === 'function') {
-                logActivity(`Started rebuilding ${selectedEntity.type}. Takes 24h.`, "info");
-            }
-            
-            updateInfoPanel(); 
-        } else {
-            alert(`Not enough funds to rebuild! Cost: $${cost}`);
-        }
-    }
-});
-
-gameLoop();
+requestAnimationFrame(gameLoop);
