@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DOMville</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <!-- DOMVILLE LOADING SCREEN -->
@@ -26,9 +26,15 @@
 </div>
 
 <div id="top-controls">
-    <button class="action-btn" id="new-game-btn">New Game</button>
-    <button class="action-btn" id="export-game-btn">Export</button>
-    <button class="action-btn" id="import-game-btn">Import</button>
+    <!-- Rebuild Toggle Switch -->
+    <div class="rebuild-container" title="Toggle Rebuild Mode">
+        <span style="font-size: 14px; font-weight: bold; color: #fff; margin-right: 8px;">Rebuild</span>
+        <label class="switch">
+            <input type="checkbox" id="rebuild-toggle">
+            <span class="slider round"></span>
+        </label>
+    </div>
+
     <!-- Demolish Toggle Switch -->
     <div class="demolish-container" title="Toggle Demolish Mode">
         <span style="font-size: 14px; font-weight: bold; color: #fff; margin-right: 8px;">Demolish</span>
@@ -78,7 +84,7 @@
     <div class="tool-panel active-panel" id="panel-zones">
         <button class="tool-btn active" data-tool="house">House</button>
         <button class="tool-btn" data-tool="office">Office</button>
-        <button class="tool-btn" data-tool="supermarket">Supermarket</button>
+        <button class="tool-btn" data-tool="supermarket">Grocery</button>
         <button class="tool-btn" data-tool="factory">Factory</button>
         <button class="tool-btn" data-tool="farm">Farm</button>
         <button class="tool-btn" data-tool="school">School</button>
@@ -91,6 +97,7 @@
         <button class="tool-btn" data-tool="busStop">Bus Stop</button>
         <button class="tool-btn" data-tool="trainStation">Train Station</button>
         <button class="tool-btn" data-tool="trainTrack">Train Track</button>
+        <button class="tool-btn" data-tool="train">Train</button>
     </div>
 
     <div class="tool-panel" id="panel-services">
@@ -101,10 +108,39 @@
     </div>
 
     <div class="tool-panel" id="panel-utilities">
-        <button class="tool-btn" data-tool="powerPlant">Power Plant</button>
-        <button class="tool-btn" data-tool="waterPump">Water Pump</button>
+        <button class="tool-btn" data-tool="powerPlant">Megalco</button>
+        <button class="tool-btn" data-tool="waterPump">Maylunod</button>
     </div>
 </div>
+
+    <!-- Settings Gear Button (Bottom Right) -->
+    <div id="settings-btn" class="settings-gear" title="Settings">⚙️</div>
+
+    <!-- The Settings Modal -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-content settings-content">
+            <h2 style="margin-top: 0;">Settings & Data</h2>
+            
+            <div class="setting-row">
+                <span>Building Outlines</span>
+                <label class="switch"><input type="checkbox" id="outline-toggle" checked><span class="slider round"></span></label>
+            </div>
+            
+            <div class="setting-row">
+                <span>Sound Effects</span>
+                <label class="switch"><input type="checkbox" id="sound-toggle" checked><span class="slider round"></span></label>
+            </div>
+
+            <hr style="border-color: #444; margin: 20px 0;">
+
+            <button id="export-game-btn" class="modal-btn">Export Save Data</button>
+            <button id="import-game-btn" class="modal-btn">Import Save Data</button>
+            <button id="new-game-btn" class="modal-btn danger-btn">Start New City</button>
+            
+            <button id="close-settings-btn" class="modal-btn cancel-btn" style="margin-top: 15px;">Close</button>
+        </div>
+    </div>
+    
     <canvas id="gameCanvas"></canvas>
     <script src="js/terrain.js"></script>
     <script src="js/population.js"></script>
@@ -119,29 +155,8 @@
     <script src="js/traffic.js"></script>
     <script src="js/disasters.js"></script>
     <script src="js/audio.js"></script>
+    <script src="js/blueprints.js"></script>
+    <script src="js/ui.js"></script>
     <script src="js/game.js"></script>
-
-    <!-- Sound Toggle Switch (Bottom Right) -->
-    <div class="sound-toggle-container" title="Toggle Sound">
-        <span style="font-size: 14px; font-family: sans-serif; font-weight: bold; color: white; margin-right: 8px;">Sound</span>
-        <label class="switch">
-        <!-- Checked by default means sound is ON -->
-            <input type="checkbox" id="mute-toggle" checked>
-        <span class="slider round"></span>
-        </label>
-    </div>
-
-<!-- Save Data Modal -->
-<div id="save-modal" class="modal-overlay">
-    <div class="modal-content">
-        <h2 id="save-modal-title">Save Data</h2>
-        <textarea id="save-textarea" placeholder="Paste your save string here..." spellcheck="false"></textarea>
-        <div class="modal-buttons">
-            <button id="save-action-btn">Action</button>
-            <button id="save-close-btn">Close</button>
-        </div>
-    </div>
-</div>
-
 </body>
 </html>
