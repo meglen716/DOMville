@@ -59,16 +59,7 @@ cd DOMville
 * **Scroll Wheel:** Zoom in and out.
 * **Pinch-to-Zoom:** Supported on touch devices.
 * **D Key:** Toggle the Demolish tool.
-
-## Project Architecture
-
-The game logic is strictly divided into modular files for maintainability:
-
-* `index.html`: The main entry point housing the Canvas element and UI overlay.
-* `game.js`: The core engine loop. Handles input processing, camera math, game state, auto-saving, and unified rendering.
-* `terrain.js`: Contains the procedural generation logic for islands, water bodies, and elevation.
-* `traffic.js`: Manages the pathfinding algorithm, vehicular states, intersection logic, and supply/emergency dispatching.
-* `train.js`: Controls the mass transit network, train logic, passenger capacity tracking, and collision detection.
+* **R Key:** Toggle the Rebuild tool.
 
 ## Contributing
 
