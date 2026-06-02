@@ -522,6 +522,10 @@ input:checked + .slider:before {
 .log-upgrade { color: #2ecc71; } /* Green */
 .log-emergency { color: #e74c3c; font-weight: bold; } /* Red */
 .log-info { color: #ecf0f1; } /* White */
+.log-crime {
+    color: #f1c40f; 
+    font-weight: bold;
+} /* Yellow */
 .log-time { color: #7f8c8d; font-size: 11px; margin-right: 6px; }
 
 /* --- SOUND TOGGLE STYLES --- */
