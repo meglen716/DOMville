@@ -19,6 +19,7 @@ window.gameIsMuted = false;
 
 const gridSize = 40;
 const WORLD_SIZE = 4000; 
+const REBUILD_DURATION = 1440; // ~24 real seconds (Approx 24 in-game hours)
 
 const entities = []; 
 const roads = []; 
@@ -61,7 +62,7 @@ function spendFunds(amount) {
 function refund(type) {
     const cost = BUILDING_COSTS[type] || 0;
     if (cost > 0) {
-        const refundAmount = Math.floor(cost / 2); // 50% cash back
+        const refundAmount = Math.floor(cost / 2);
         if (typeof cityFunds !== 'undefined') { cityFunds += refundAmount; }
         else { window.cityFunds = (window.cityFunds || 20000) + refundAmount; }
         if (typeof logActivity === 'function') logActivity(`Refunded $${refundAmount} for demolished ${type}.`, "info");
@@ -209,30 +210,16 @@ loadGame();
 
 window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    
-    // 'D' for Demolish
-    if (e.key.toLowerCase() === 'd') {
-        const demToggle = document.getElementById('demolish-toggle');
-        if (demToggle) demToggle.click(); 
-    }
-    
-    // 'R' for Rebuild
-    if (e.key.toLowerCase() === 'r') {
-        const rebToggle = document.getElementById('rebuild-toggle');
-        if (rebToggle) rebToggle.click(); 
-    }
-
+    if (e.key.toLowerCase() === 'd') { const demToggle = document.getElementById('demolish-toggle'); if (demToggle) demToggle.click(); }
+    if (e.key.toLowerCase() === 'r') { const rebToggle = document.getElementById('rebuild-toggle'); if (rebToggle) rebToggle.click(); }
     if (e.key === 'Escape') {
         window.currentTool = null;
         document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-        const demToggle = document.getElementById('demolish-toggle');
-        const rebToggle = document.getElementById('rebuild-toggle');
-        if (demToggle) demToggle.checked = false;
-        if (rebToggle) rebToggle.checked = false;
+        const demToggle = document.getElementById('demolish-toggle'); const rebToggle = document.getElementById('rebuild-toggle');
+        if (demToggle) demToggle.checked = false; if (rebToggle) rebToggle.checked = false;
     }
 });
 
-// --- SMART TOOLTIPS ---
 function updateTooltips() {
     const currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : (window.cityFunds || 0);
 
@@ -245,10 +232,7 @@ function updateTooltips() {
         if (currentFunds < cost) {
             btn.classList.add('locked-tool');
             btn.setAttribute('data-tooltip', `Not enough funds! ($${cost})`);
-            if (btn.classList.contains('active')) {
-                btn.classList.remove('active');
-                window.currentTool = null;
-            }
+            if (btn.classList.contains('active')) { btn.classList.remove('active'); window.currentTool = null; }
             return;
         }
 
@@ -276,11 +260,8 @@ updateTooltips();
 document.querySelectorAll('.tool-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         if (btn.classList.contains('locked-tool')) return;
-        
-        const demToggle = document.getElementById('demolish-toggle');
-        const rebToggle = document.getElementById('rebuild-toggle');
-        if (demToggle) demToggle.checked = false;
-        if (rebToggle) rebToggle.checked = false;
+        const demToggle = document.getElementById('demolish-toggle'); const rebToggle = document.getElementById('rebuild-toggle');
+        if (demToggle) demToggle.checked = false; if (rebToggle) rebToggle.checked = false;
 
         const clickedTool = e.target.dataset.tool;
         document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
@@ -292,15 +273,12 @@ document.querySelectorAll('.tool-btn').forEach(btn => {
 document.querySelectorAll('.category-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         const isActive = e.target.classList.contains('active-category');
-
         document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active-category'));
         document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('active-panel'));
         
         if (!isActive) {
             e.target.classList.add('active-category'); 
-            const targetPanelId = e.target.dataset.target; 
-            const panel = document.getElementById(targetPanelId);
-            if (panel) panel.classList.add('active-panel');
+            const panel = document.getElementById(e.target.dataset.target); if (panel) panel.classList.add('active-panel');
         } else {
             window.currentTool = null;
             document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
@@ -311,11 +289,7 @@ document.querySelectorAll('.category-btn').forEach(btn => {
 const firstCategory = document.querySelector('[data-target="panel-zones"]'); if (firstCategory) firstCategory.classList.add('active-category');
 const taxSlider = document.getElementById('tax-slider'); const taxValDisplay = document.getElementById('tax-val-display');
 if (taxSlider && taxValDisplay) { 
-    taxSlider.addEventListener('input', (e) => { 
-        currentTaxRate = e.target.value / 10; 
-        taxValDisplay.innerText = `${e.target.value}%`; 
-        updateTooltips(); 
-    }); 
+    taxSlider.addEventListener('input', (e) => { currentTaxRate = e.target.value / 10; taxValDisplay.innerText = `${e.target.value}%`; updateTooltips(); }); 
 }
 
 const closeInfoBtn = document.getElementById('close-info'); if (closeInfoBtn) { closeInfoBtn.addEventListener('click', () => { const panel = document.getElementById('info-panel'); if (panel) panel.classList.add('hidden'); selectedEntity = null; }); }
@@ -327,8 +301,7 @@ function updateInfoPanel() {
     title.innerText = selectedEntity.type.toUpperCase();
     let html = '';
     
-    let yieldAmount = 0;
-    let upkeepAmount = MAINTENANCE_COSTS[selectedEntity.type] || 0;
+    let yieldAmount = 0; let upkeepAmount = MAINTENANCE_COSTS[selectedEntity.type] || 0;
 
     if (selectedEntity.type === 'house') {
         html += `<div class="info-stat">🏠 Level: ${selectedEntity.level || 1}</div>`;
@@ -353,10 +326,11 @@ function updateInfoPanel() {
 
     html += `<hr style="border-color:#444; margin: 10px 0;">`;
     
-    if (yieldAmount > 0 && !selectedEntity.isAbandoned && !selectedEntity.isBurned) {
+    // HIDDEN YIELDS: Do not show income or upkeep if the building is ruined, abandoned, or rebuilding!
+    if (yieldAmount > 0 && !selectedEntity.isAbandoned && !selectedEntity.isBurned && !selectedEntity.isRebuilding) {
         html += `<div class="info-stat">💰 Tax Yield: <span class="good" style="color:#2ecc71; font-weight:bold;">+$${yieldAmount}</span></div>`;
     }
-    if (upkeepAmount > 0 && !selectedEntity.isBurned) {
+    if (upkeepAmount > 0 && !selectedEntity.isBurned && !selectedEntity.isRebuilding) {
         html += `<div class="info-stat">💸 Upkeep: <span class="bad" style="color:#e74c3c; font-weight:bold;">-$${upkeepAmount}</span></div>`;
     }
 
@@ -367,6 +341,7 @@ function updateInfoPanel() {
     if (selectedEntity.fireLevel > 0) html += `<div class="info-stat bad">🔥 ON FIRE! (${Math.floor(selectedEntity.fireLevel)})</div>`;
     if (selectedEntity.isAbandoned) html += `<div class="info-stat bad">👻 ABANDONED</div>`;
     if (selectedEntity.isBurned) html += `<div class="info-stat bad">☠️ DESTROYED</div>`;
+    if (selectedEntity.isRebuilding) html += `<div class="info-stat" style="color:#f1c40f;">🚧 UNDER CONSTRUCTION</div>`;
     content.innerHTML = html;
 }
 
@@ -386,10 +361,7 @@ function updateHUD() {
     if (typeof collectTaxes === 'function') {
         const economyResult = collectTaxes(entities, currentTaxRate, MAINTENANCE_COSTS, busStops, trainStations);
         let incomePerSec = (economyResult.netIncome / 10).toFixed(1);
-        
-        popDisplay.innerText = economyResult.population; 
-        fundsDisplay.innerText = Math.floor(currentFunds).toLocaleString();
-        
+        popDisplay.innerText = economyResult.population; fundsDisplay.innerText = Math.floor(currentFunds).toLocaleString();
         if (incomePerSec >= 0) { incomeDisplay.innerText = `(+$${incomePerSec}/s)`; incomeDisplay.className = 'income-rate positive'; } 
         else { incomeDisplay.innerText = `(-$${Math.abs(incomePerSec).toFixed(1)}/s)`; incomeDisplay.className = 'income-rate negative'; }
     }
@@ -410,7 +382,7 @@ function updateHUD() {
 }
 
 // ==========================================
-// 3. CORE LOGIC: ERASER 
+// 3. CORE LOGIC: ERASER & REBUILD
 // ==========================================
 function performDeletion(clientX, clientY) {
     const { gridX, gridY } = getGridCoords(clientX, clientY);
@@ -466,64 +438,32 @@ function performDeletion(clientX, clientY) {
 
 // --- REBUILD LOGIC ---
 function processRebuildArea(start, end, gridSize, entities) {
-    const minGridX = Math.min(start.x, end.x);
-    const maxGridX = Math.max(start.x, end.x);
-    const minGridY = Math.min(start.y, end.y);
-    const maxGridY = Math.max(start.y, end.y);
-
-    let totalCost = 0;
-    let rebuiltCount = 0;
+    const minGridX = Math.min(start.x, end.x); const maxGridX = Math.max(start.x, end.x);
+    const minGridY = Math.min(start.y, end.y); const maxGridY = Math.max(start.y, end.y);
+    let totalCost = 0; let rebuiltCount = 0;
 
     for (let i = 0; i < entities.length; i++) {
         let ent = entities[i];
-        
-        // Check if the building is inside the blue drag box
         if (ent.x >= minGridX && ent.x <= maxGridX && ent.y >= minGridY && ent.y <= maxGridY) {
-            
-            // Only rebuild buildings that are ruined or abandoned
             if (ent.isBurned || ent.isAbandoned) {
                 let cost = BUILDING_COSTS[ent.type] || 100;
                 let currentFunds = typeof cityFunds !== 'undefined' ? cityFunds : window.cityFunds;
                 
-                // Do we have enough money for this specific building?
                 if (currentFunds >= cost) {
-                    spendFunds(cost); // Deducts the money and updates HUD
-                    
-                    // Restore the building to working order!
-                    ent.isBurned = false;
-                    ent.isAbandoned = false;
-                    ent.fireLevel = 0;
-                    ent.hasEmergency = false;
-                    
-                    // If it's a house, reset it to level 1 so it has to grow again
-                    if (ent.type === 'house') {
-                        ent.level = 1;
-                        ent.growth = 0;
-                        ent.densityMult = 1.0;
-                    }
-                    
-                    // Add a nice visual pop!
-                    if (typeof spawnDustParticles === 'function') {
-                        spawnDustParticles(ent.x, ent.y, 20, '#3498db', gridSize);
-                    }
-                    
-                    totalCost += cost;
-                    rebuiltCount++;
+                    spendFunds(cost); 
+                    ent.isBurned = false; ent.isAbandoned = false; ent.fireLevel = 0; ent.hasEmergency = false;
+                    ent.isRebuilding = true; ent.rebuildProgress = 0.0;
+                    if (ent.type === 'house') { ent.level = 1; ent.growth = 0; ent.densityMult = 1.0; }
+                    if (typeof spawnDustParticles === 'function') spawnDustParticles(ent.x, ent.y, 20, '#f1c40f', gridSize);
+                    totalCost += cost; rebuiltCount++;
                 } else {
-                    // Out of money! Stop the loop so remaining buildings stay ruined.
-                    if (typeof logActivity === 'function') {
-                        logActivity(`Rebuild halted! Not enough funds for ${ent.type}.`, "bad");
-                    }
+                    if (typeof logActivity === 'function') logActivity(`Rebuild halted! Not enough funds for ${ent.type}.`, "bad");
                     break; 
                 }
             }
         }
     }
-    
-    // Log the success to the activity feed
-    if (rebuiltCount > 0 && typeof logActivity === 'function') {
-        logActivity(`Rebuilt ${rebuiltCount} structure(s) for $${totalCost}.`, "info");
-    }
+    if (rebuiltCount > 0 && typeof logActivity === 'function') logActivity(`Started construction on ${rebuiltCount} structure(s) for $${totalCost}.`, "info");
 }
 
 // ==========================================
@@ -533,17 +473,10 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 function handleInputStart(e, clientX, clientY, isRightClick) {
     if (isRightClick) {
-        window.currentTool = null;
-        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-        const demToggle = document.getElementById('demolish-toggle');
-        const rebToggle = document.getElementById('rebuild-toggle');
-        if (demToggle) demToggle.checked = false;
-        if (rebToggle) rebToggle.checked = false;
-        
-        // Grab the camera for panning!
-        isPanning = true; 
-        startPan = { x: clientX - camera.x, y: clientY - camera.y };
-        return;
+        window.currentTool = null; document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+        const demToggle = document.getElementById('demolish-toggle'); const rebToggle = document.getElementById('rebuild-toggle');
+        if (demToggle) demToggle.checked = false; if (rebToggle) rebToggle.checked = false;
+        isPanning = true; startPan = { x: clientX - camera.x, y: clientY - camera.y }; return;
     }
 
     const minimapSize = 200; const padding = 20; const mapX = padding; const mapY = canvas.height - minimapSize - padding - 80;
@@ -559,28 +492,11 @@ function handleInputStart(e, clientX, clientY, isRightClick) {
     const entityIndex = entities.findIndex(ent => ent.x === gridX && ent.y === gridY); 
     const panel = document.getElementById('info-panel');
 
-    // Rebuild Logic
-    if (window.currentTool === 'rebuild') {
-        isDraggingRebuild = true;
-        rebuildStart = { x: gridX, y: gridY };
-        rebuildCurrent = { x: gridX, y: gridY };
-        return;
-    }
+    if (window.currentTool === 'rebuild') { isDraggingRebuild = true; rebuildStart = { x: gridX, y: gridY }; rebuildCurrent = { x: gridX, y: gridY }; return; }
+    if (window.currentTool === 'delete') { isDeleting = true; performDeletion(clientX, clientY); return; }
 
-    if (window.currentTool === 'delete') { 
-        isDeleting = true; performDeletion(clientX, clientY); 
-        return; 
-    }
-
-    if (entityIndex > -1) {
-        selectedEntity = entities[entityIndex]; 
-        updateInfoPanel(); 
-        if (panel) panel.classList.remove('hidden'); 
-        return; 
-    } else {
-        selectedEntity = null; 
-        if (panel) panel.classList.add('hidden'); 
-    }
+    if (entityIndex > -1) { selectedEntity = entities[entityIndex]; updateInfoPanel(); if (panel) panel.classList.remove('hidden'); return; } 
+    else { selectedEntity = null; if (panel) panel.classList.add('hidden'); }
 
     if (!window.currentTool) return; 
 
@@ -609,12 +525,7 @@ function handleInputStart(e, clientX, clientY, isRightClick) {
         if (clickedTrackIndex !== -1) {
             if (trainStations.length === 0) { alert("You must build at least one Train Station before you can buy a Train!"); return; }
             let cost = BUILDING_COSTS['train'];
-            if (currentFunds >= cost) {
-                if (typeof activeTrains !== 'undefined') {
-                    activeTrains.push({ id: Math.random(), lineIndex: clickedTrackIndex, pathIndex: 0, progress: 0.5, direction: 1, state: 'boarding', waitTimer: 120 });
-                }
-                spendFunds(cost);
-            }
+            if (currentFunds >= cost) { if (typeof activeTrains !== 'undefined') { activeTrains.push({ id: Math.random(), lineIndex: clickedTrackIndex, pathIndex: 0, progress: 0.5, direction: 1, state: 'boarding', waitTimer: 120 }); } spendFunds(cost); }
         } else { alert("Trains must be placed directly on a Train Track!"); }
     } else if (window.currentTool === 'waterPump') {
         if (terrainType !== null) return; if (isRoad(gridX, gridY)) return; 
@@ -627,10 +538,7 @@ function handleInputStart(e, clientX, clientY, isRightClick) {
     } else if (window.currentTool === 'roundabout') { 
         if (isRoad(gridX, gridY) && !roundabouts.some(r => r.x === gridX && r.y === gridY)) {
             let cost = BUILDING_COSTS['roundabout'] || 300;
-            if (currentFunds >= cost) {
-                const tlIndex = trafficLights.findIndex(l => l.x === gridX && l.y === gridY); if (tlIndex > -1) { trafficLights.splice(tlIndex, 1); if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 10, '#f1c40f', gridSize); }
-                roundabouts.push({ x: gridX, y: gridY }); spendFunds(cost);
-            }
+            if (currentFunds >= cost) { const tlIndex = trafficLights.findIndex(l => l.x === gridX && l.y === gridY); if (tlIndex > -1) { trafficLights.splice(tlIndex, 1); if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 10, '#f1c40f', gridSize); } roundabouts.push({ x: gridX, y: gridY }); spendFunds(cost); }
         }
     } else if (window.currentTool === 'busStop') {
         if (isRoad(gridX, gridY) && !busStops.some(b => b.x === gridX && b.y === gridY)) { let cost = BUILDING_COSTS['busStop'] || 200; if (currentFunds >= cost) { busStops.push({ x: gridX, y: gridY }); spendFunds(cost); } }
@@ -705,19 +613,12 @@ canvas.addEventListener('mouseup', (e) => {
     if (isDrawingRoad) { isDrawingRoad = false; if (currentRoadPath.length > 1) roads.push([...currentRoadPath]); currentRoadPath = []; }
     if (isDrawingTrack) { isDrawingTrack = false; if (currentTrackPath.length > 1) trainTracks.push([...currentTrackPath]); currentTrackPath = []; }
     if (isDeleting) isDeleting = false;
-    
-    if (isDraggingRebuild && window.currentTool === 'rebuild') {
-        isDraggingRebuild = false;
-        if (typeof processRebuildArea === 'function') processRebuildArea(rebuildStart, rebuildCurrent, gridSize, entities);
-    }
+    if (isDraggingRebuild && window.currentTool === 'rebuild') { isDraggingRebuild = false; processRebuildArea(rebuildStart, rebuildCurrent, gridSize, entities); }
 });
 
 canvas.addEventListener('touchend', () => {
     isPanning = false; isDrawingRoad = false; isDrawingTrack = false; isDeleting = false;
-    if (isDraggingRebuild && window.currentTool === 'rebuild') {
-        isDraggingRebuild = false;
-        if (typeof processRebuildArea === 'function') processRebuildArea(rebuildStart, rebuildCurrent, gridSize, entities);
-    }
+    if (isDraggingRebuild && window.currentTool === 'rebuild') { isDraggingRebuild = false; processRebuildArea(rebuildStart, rebuildCurrent, gridSize, entities); }
 });
 
 canvas.addEventListener('wheel', (e) => {
@@ -768,6 +669,87 @@ function drawMinimap(ctx) {
     ctx.fillText('Drag: Pan Camera  •  Scroll/Pinch: Zoom', mapX, mapY + minimapSize + 28);
 }
 
+// --- DESTRUCTION RENDERERS ---
+function drawRuin(ctx, ent, gridSize) {
+    const cx = ent.x + gridSize / 2;
+    const cy = ent.y + gridSize / 2;
+    const w = gridSize * 0.7;
+    const h = gridSize * 0.6;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // Jagged Collapsed Base
+    ctx.fillStyle = '#2c3e50'; // Dark rubble color
+    ctx.beginPath();
+    ctx.moveTo(-w/2, h/2);
+    ctx.lineTo(w/2, h/2);
+    ctx.lineTo(w/2, 0);
+    ctx.lineTo(w/4, -h/4);   // Jagged dip
+    ctx.lineTo(0, 0);        // Jagged peak
+    ctx.lineTo(-w/4, -h/3);  // Jagged dip
+    ctx.lineTo(-w/2, 0);
+    ctx.closePath();
+    ctx.fill();
+    if (window.showBuildingOutlines) {
+        ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 1; ctx.stroke();
+    }
+
+    // Exposed Steel/Wood Beams Sticking Out
+    ctx.strokeStyle = '#111111';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-w/4, 0); ctx.lineTo(-w/3, -h/1.5); // Beam 1
+    ctx.moveTo(0, h/4);  ctx.lineTo(w/4, -h/2);    // Beam 2
+    ctx.moveTo(w/3, 0);  ctx.lineTo(w/2.5, -h/1.2); // Beam 3
+    ctx.stroke();
+
+    // Scattered Debris at the base
+    ctx.fillStyle = '#7f8c8d';
+    ctx.fillRect(-w/2 + 2, h/2 - 4, 6, 4);
+    ctx.fillRect(w/4, h/2 - 6, 5, 6);
+    ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(-5, h/2 - 5); ctx.lineTo(5, h/2 - 5); ctx.fill();
+
+    ctx.restore();
+}
+
+function drawAbandonedDetails(ctx, ent, gridSize) {
+    const cx = ent.x + gridSize / 2;
+    const cy = ent.y + gridSize / 2;
+    
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // Boarded-up wood planks over the center
+    ctx.strokeStyle = '#5c4033'; // Dark brown wood
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    
+    // The "X" mark
+    ctx.beginPath();
+    ctx.moveTo(-6, -6); ctx.lineTo(6, 6);
+    ctx.moveTo(6, -6);  ctx.lineTo(-6, 6);
+    ctx.stroke();
+    // Horizontal board
+    ctx.beginPath();
+    ctx.moveTo(-8, 0);  ctx.lineTo(8, 0);
+    ctx.stroke();
+
+    // Creeping Vines spreading from the bottom
+    ctx.strokeStyle = '#27ae60';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    // Left vine
+    ctx.moveTo(-gridSize/3, gridSize/3);
+    ctx.quadraticCurveTo(-gridSize/4, 0, -gridSize/3, -gridSize/4);
+    // Right vine
+    ctx.moveTo(gridSize/4, gridSize/3);
+    ctx.quadraticCurveTo(gridSize/3, 0, gridSize/5, -gridSize/5);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
 // ==========================================
 // 6. MAIN GAME LOOP
 // ==========================================
@@ -812,38 +794,163 @@ function gameLoop() {
 
     const nightMode = typeof isNightTime === 'function' && isNightTime();
 
-    if (taxTimer % 60 === 0 && typeof updateResources === 'function') { updateResources(entities, gridSize); }
-    if (taxTimer % 30 === 0 && typeof processLandValueAndGrowth === 'function') { processLandValueAndGrowth(entities, gridSize, currentTaxRate, trainStations); } 
-    if (taxTimer % 60 === 0 && typeof updateEconomyTick === 'function') { updateEconomyTick(entities, gridSize); }
-    if (taxTimer % 300 === 0) { saveGame(); }
-
     entities.forEach(ent => {
-        if (ent.driveway && (!isRoad(ent.driveway.x, ent.driveway.y))) { ent.driveway = null; ent.hasRoad = false; }
-        if (!ent.driveway) {
-            const dirs = [{dx:0, dy:-gridSize}, {dx:gridSize, dy:0}, {dx:0, dy:gridSize}, {dx:-gridSize, dy:0}];
-            for(let d of dirs) { if(isRoad(ent.x + d.dx, ent.y + d.dy)) { ent.driveway = {x: ent.x + d.dx, y: ent.y + d.dy}; ent.hasRoad = true; break; } }
-        }
-        if (!ent.driveway) ent.hasRoad = false;
+        
+        // --- DRIVEWAY CONNECTOR LOGIC (Excluded for Parks) ---
+        if (ent.type !== 'park') {
+            if (ent.driveway && (!isRoad(ent.driveway.x, ent.driveway.y))) { ent.driveway = null; ent.hasRoad = false; }
+            if (!ent.driveway) {
+                const dirs = [{dx:0, dy:-gridSize}, {dx:gridSize, dy:0}, {dx:0, dy:gridSize}, {dx:-gridSize, dy:0}];
+                for(let d of dirs) { if(isRoad(ent.x + d.dx, ent.y + d.dy)) { ent.driveway = {x: ent.x + d.dx, y: ent.y + d.dy}; ent.hasRoad = true; break; } }
+            }
+            if (!ent.driveway) ent.hasRoad = false;
 
-        if (ent.driveway) { ctx.strokeStyle = '#404040'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(ent.x + gridSize/2, ent.y + gridSize/2); ctx.lineTo(ent.driveway.x + gridSize/2, ent.driveway.y + gridSize/2); ctx.stroke(); }
+            if (ent.driveway) { 
+                ctx.strokeStyle = '#404040'; ctx.lineWidth = 6; ctx.beginPath(); 
+                ctx.moveTo(ent.x + gridSize/2, ent.y + gridSize/2); 
+                ctx.lineTo(ent.driveway.x + gridSize/2, ent.driveway.y + gridSize/2); 
+                ctx.stroke(); 
+            }
+        }
 
         const hasBlueprint = typeof BLUEPRINTS !== 'undefined' && BLUEPRINTS[ent.type];
-        if (hasBlueprint && typeof drawBuilding === 'function') {
-            drawBuilding(ctx, ent, gridSize, nightMode);
-        } else if (typeof drawZone === 'function') {
-            let occ = typeof getOccupancy === 'function' ? getOccupancy(ent) : 0;
-            drawZone(ctx, ent, gridSize, nightMode, occ);
+
+        // --- NEW CONSTRUCTION TENT LOGIC ---
+        if (ent.isRebuilding) {
+            ent.rebuildProgress += (1 / REBUILD_DURATION);
+            
+            if (ent.rebuildProgress >= 1) {
+                ent.isRebuilding = false; ent.rebuildProgress = 1;
+                if (typeof spawnDustParticles === 'function') spawnDustParticles(ent.x, ent.y, 40, '#ecf0f1', gridSize);
+                if (typeof logActivity === 'function') logActivity(`${ent.type} construction completed!`, "good");
+            } else {
+                const tX = ent.x; const tY = ent.y;
+                ctx.fillStyle = '#3498db'; ctx.fillRect(tX + 2, tY + gridSize * 0.4, gridSize - 4, gridSize * 0.6 - 2);
+                ctx.fillStyle = '#2980b9'; ctx.beginPath(); ctx.moveTo(tX + 2, tY + gridSize * 0.4); ctx.lineTo(tX + gridSize / 2, tY + 4); ctx.lineTo(tX + gridSize - 2, tY + gridSize * 0.4); ctx.closePath(); ctx.fill();
+
+                if (window.showBuildingOutlines) {
+                    ctx.strokeStyle = '#154360'; ctx.lineWidth = 1;
+                    ctx.strokeRect(tX + 2, tY + gridSize * 0.4, gridSize - 4, gridSize * 0.6 - 2);
+                    ctx.beginPath(); ctx.moveTo(tX + 2, tY + gridSize * 0.4); ctx.lineTo(tX + gridSize / 2, tY + 4); ctx.lineTo(tX + gridSize - 2, tY + gridSize * 0.4); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(tX + gridSize / 2, tY + 4); ctx.lineTo(tX + gridSize / 2, tY + gridSize - 2); ctx.stroke();
+                }
+
+                ctx.fillStyle = '#154360'; ctx.beginPath(); ctx.moveTo(tX + gridSize / 2, tY + gridSize - 2); ctx.lineTo(tX + gridSize / 2 - 4, tY + gridSize * 0.6); ctx.lineTo(tX + gridSize / 2 + 4, tY + gridSize * 0.6); ctx.closePath(); ctx.fill();
+
+                if (Math.random() < 0.15 && typeof spawnDustParticles === 'function') spawnDustParticles(ent.x, ent.y + gridSize - 4, 2, '#bdc3c7', gridSize);
+                
+                ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(ent.x + 5, ent.y - 10, gridSize - 10, 6);
+                ctx.fillStyle = '#f1c40f'; ctx.fillRect(ent.x + 6, ent.y - 9, (gridSize - 12) * ent.rebuildProgress, 4);
+            }
+        } 
+        else if (ent.isBurned) {
+            // Completely replace the building with the Ruined Skeleton
+            drawRuin(ctx, ent, gridSize);
+        }
+        else {
+            // Apply a dull, sepia filter if the building is Abandoned!
+            if (ent.isAbandoned) {
+                ctx.save();
+                ctx.filter = 'grayscale(80%) brightness(70%) sepia(30%)'; 
+            }
+
+            // Draw the actual building geometry
+            if (hasBlueprint && typeof drawBuilding === 'function') {
+                drawBuilding(ctx, ent, gridSize, nightMode);
+            } else if (typeof drawZone === 'function') {
+                drawZone(ctx, ent, gridSize, nightMode, typeof getOccupancy === 'function' ? getOccupancy(ent) : 0);
+            }
+
+            // Remove the filter and draw the Boards & Vines on top
+            if (ent.isAbandoned) {
+                ctx.restore();
+                drawAbandonedDetails(ctx, ent, gridSize);
+            }
+        }
+
+        // --- STATE MONITOR: LOG DEATHS & ABANDONMENT ---
+        let currentState = 'operational';
+        if (ent.isBurned) currentState = 'burned';
+        else if (ent.isAbandoned) currentState = 'abandoned';
+        else if (ent.isRebuilding) currentState = 'rebuilding';
+
+        if (ent._previousState === undefined) {
+            ent._previousState = currentState;
+        } else if (ent._previousState !== currentState) {
+            if (ent.type === 'house' && ent._previousState === 'operational') {
+                let popAffected = Math.floor(10 * (ent.level || 1) * (ent.densityMult || 1.0));
+                if (currentState === 'burned') {
+                    if (typeof logActivity === 'function') logActivity(`Tragedy! ${popAffected} residents died in a ruined house.`, "bad");
+                } else if (currentState === 'abandoned') {
+                    if (typeof logActivity === 'function') logActivity(`Poor conditions! ${popAffected} residents moved out.`, "bad");
+                }
+            }
+            ent._previousState = currentState;
+        }
+
+        // --- ALERTS & OVERLAYS ---
+        // Crime Scene Police Tape!
+        if (ent.isCrimeScene) {
+            ctx.save();
+            ctx.translate(ent.x, ent.y);
+            
+            // Draw diagonal yellow and black tape across the building
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#f1c40f'; // Bright Yellow
+            ctx.beginPath();
+            ctx.moveTo(-5, gridSize * 0.8);
+            ctx.lineTo(gridSize + 5, gridSize * 0.2);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#111111'; // Black dashes
+            ctx.setLineDash([8, 8]);
+            ctx.lineDashOffset = -(Date.now() / 50); // Animated crawling tape effect!
+            ctx.beginPath();
+            ctx.moveTo(-5, gridSize * 0.8);
+            ctx.lineTo(gridSize + 5, gridSize * 0.2);
+            ctx.stroke();
+            
+            ctx.restore();
         }
 
         if (ent.type === 'house') {
-            if (ent.densityMult > 1.0 && !ent.isAbandoned && !ent.isBurned) { 
-                ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.arc(ent.x + gridSize/2 + 6, ent.y + gridSize/2 - 6, 4, 0, Math.PI * 2); ctx.fill(); 
-            }
-            if (ent.isAbandoned) { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.font = `bold 10px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('DEAD', ent.x + gridSize/2, ent.y + gridSize/2 + 4); }
-        }
-        if (ent.isBurned) { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(ent.x, ent.y, gridSize, gridSize); ctx.fillStyle = 'white'; ctx.font = `bold 10px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('RUIN', ent.x + gridSize/2, ent.y + gridSize/2 + 4); }
+            if (ent.densityMult > 1.0 && !ent.isAbandoned && !ent.isBurned && !ent.isRebuilding) { 
+                const cx = ent.x + gridSize / 2;
+                const cy = ent.y + gridSize / 2;
+                
+                ctx.save();
+                ctx.translate(cx, cy);
 
-        if (['house', 'office', 'supermarket', 'school', 'policeStation', 'hospital', 'fireStation', 'powerPlant', 'waterPump', 'factory', 'farm'].includes(ent.type) && !ent.isAbandoned && !ent.isBurned) {
+                // 3-Tone Park-Style Bushes (Left and Right front corners, level with ground)
+                const drawParkStyleBush = (bx, by) => {
+                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = '#111111';
+                    
+                    // Back/Darkest leaf (Bottom-left)
+                    ctx.fillStyle = '#1e8449'; 
+                    ctx.beginPath(); ctx.arc(bx - 2.5, by + 1, 3.5, 0, Math.PI * 2); ctx.fill();
+                    if (window.showBuildingOutlines) ctx.stroke();
+                    
+                    // Mid leaf (Bottom-right)
+                    ctx.fillStyle = '#27ae60'; 
+                    ctx.beginPath(); ctx.arc(bx + 2.5, by + 1, 3, 0, Math.PI * 2); ctx.fill();
+                    if (window.showBuildingOutlines) ctx.stroke();
+                    
+                    // Top/Lightest leaf (Center-top)
+                    ctx.fillStyle = '#2ecc71'; 
+                    ctx.beginPath(); ctx.arc(bx, by - 2, 3.5, 0, Math.PI * 2); ctx.fill();
+                    if (window.showBuildingOutlines) ctx.stroke();
+                };
+
+                // Draw anchored at the exact bottom corners of the house base
+                drawParkStyleBush(-11, 14);
+                drawParkStyleBush(11, 14);
+
+                ctx.restore();
+            }
+        }
+
+        if (['house', 'office', 'supermarket', 'school', 'policeStation', 'hospital', 'fireStation', 'powerPlant', 'waterPump', 'factory', 'farm'].includes(ent.type) && !ent.isAbandoned && !ent.isBurned && !ent.isRebuilding) {
             const time = Date.now();
             if (time % 1000 < 500) {
                 if (ent.hasRoad === false) { ctx.fillStyle = '#34495e'; ctx.beginPath(); ctx.arc(ent.x + gridSize/2, ent.y - 5, 10, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(ent.x + gridSize/2 - 1, ent.y - 10, 2, 4); ctx.fillRect(ent.x + gridSize/2 - 1, ent.y - 4, 2, 4); }
@@ -851,18 +958,16 @@ function gameLoop() {
                 else if (ent.hasWater === false) { ctx.fillStyle = '#3498db'; ctx.beginPath(); ctx.arc(ent.x + gridSize/2, ent.y - 5, 10, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('💧', ent.x + gridSize/2, ent.y - 1); }
             }
         }
-        if (ent.hasEmergency) { const time = Date.now(); if (time % 500 < 250) { ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(ent.x + gridSize/2, ent.y - 10, 8, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = 'white'; ctx.fillRect(ent.x + gridSize/2 - 1, ent.y - 14, 2, 8); ctx.fillRect(ent.x + gridSize/2 - 4, ent.y - 11, 8, 2); } }
+        if (ent.hasEmergency && !ent.isRebuilding) { const time = Date.now(); if (time % 500 < 250) { ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(ent.x + gridSize/2, ent.y - 10, 8, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = 'white'; ctx.fillRect(ent.x + gridSize/2 - 1, ent.y - 14, 2, 8); ctx.fillRect(ent.x + gridSize/2 - 4, ent.y - 11, 8, 2); } }
         if (typeof drawFireAnimation === 'function') drawFireAnimation(ctx, ent, gridSize);
     });
 
-    if (typeof manageTrains === 'function') { manageTrains(trainTracks, trainStations); }
-    if (typeof updateAndDrawTrains === 'function') { updateAndDrawTrains(ctx, trainTracks, gridSize, nightMode); }
+    if (typeof manageTrains === 'function') manageTrains(trainTracks, trainStations);
+    if (typeof updateAndDrawTrains === 'function') updateAndDrawTrains(ctx, trainTracks, gridSize, nightMode);
 
     trainStations.forEach(station => {
         station.type = 'trainStation'; 
-        if (typeof drawBuilding === 'function') {
-            drawBuilding(ctx, station, gridSize, nightMode);
-        }
+        if (typeof drawBuilding === 'function') drawBuilding(ctx, station, gridSize, nightMode);
     });
 
     if (typeof updateAndDrawCars === 'function') updateAndDrawCars(ctx);
@@ -870,19 +975,18 @@ function gameLoop() {
     if (typeof drawNightOverlay === 'function') drawNightOverlay(ctx, WORLD_SIZE, WORLD_SIZE);
     if (typeof updateAndDrawTornadoes === 'function') updateAndDrawTornadoes(ctx, entities, cars, gridSize);
 
-    // Rebuild Drag Box Visualizer
+    // Rebuild Drag Box
     if (isDraggingRebuild && window.currentTool === 'rebuild') {
         ctx.save();
         const minX = Math.min(rebuildStart.x, rebuildCurrent.x); const maxX = Math.max(rebuildStart.x, rebuildCurrent.x) + gridSize;
         const minY = Math.min(rebuildStart.y, rebuildCurrent.y); const maxY = Math.max(rebuildStart.y, rebuildCurrent.y) + gridSize;
-
         ctx.fillStyle = 'rgba(52, 152, 219, 0.4)'; ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
         ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 / camera.zoom; ctx.setLineDash([4, 4]); ctx.lineDashOffset = -Date.now() / 30;
         ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
         ctx.restore();
     }
 
-    // Demolish Hover Visualizer
+    // Demolish Hover
     if (window.currentTool === 'delete' && currentHover.x !== null) {
         ctx.save(); ctx.beginPath(); ctx.arc(currentHover.x + gridSize / 2, currentHover.y + gridSize / 2, gridSize / 2, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(231, 76, 60, 0.4)'; ctx.fill();
@@ -899,142 +1003,102 @@ function gameLoop() {
     if (typeof updateAndDrawWeather === 'function') updateAndDrawWeather(ctx, canvas.width, canvas.height, entities, gridSize);
     if (typeof updateTime === 'function') updateTime();
     if (taxTimer % 10 === 0) updateHUD();
-
     if (typeof manageTraffic === 'function') manageTraffic();
     if (typeof manageDisasters === 'function') manageDisasters(entities, gridSize, cars);
 
     taxTimer++;
+
+    // --- ECONOMY HIDING TRICK ---
+    entities.forEach(ent => {
+        // Add ent.isCrimeScene to this list!
+        if (ent.isBurned || ent.isAbandoned || ent.isRebuilding || ent.isCrimeScene) {
+            ent._tempType = ent.type;
+            ent.type = 'disabled_structure'; 
+        }
+    });
+
     if (taxTimer >= TAX_INTERVAL) {
         if (typeof collectTaxes === 'function') {
             const economyResult = collectTaxes(entities, currentTaxRate, MAINTENANCE_COSTS, busStops, trainStations);
-            if (typeof cityFunds !== 'undefined') { cityFunds += economyResult.netIncome; }
-            else { window.cityFunds = (window.cityFunds || 20000) + economyResult.netIncome; }
+            if (typeof cityFunds !== 'undefined') cityFunds += economyResult.netIncome;
+            else window.cityFunds = (window.cityFunds || 20000) + economyResult.netIncome;
             if (typeof processTaxes === 'function') processTaxes(economyResult.population); 
         }
         taxTimer = 0;
     }
+
+    // Restore their true identities for the next drawing frame
+    entities.forEach(ent => {
+        if (ent._tempType) {
+            ent.type = ent._tempType;
+            delete ent._tempType;
+        }
+    });
 
     drawMinimap(ctx);
     ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.font = '12px sans-serif'; ctx.fillText('© Meglen 2026', canvas.width - 100, canvas.height - 5);
     requestAnimationFrame(gameLoop);
 }
 
+// ==========================================
+// IMPORT & EXPORT FILE LOGIC (.txt)
+// ==========================================
 window.addEventListener('DOMContentLoaded', () => {
     const exportBtn = document.getElementById('export-game-btn');
     const importBtn = document.getElementById('import-game-btn');
 
-    // --- EXPORT TO .TXT FILE ---
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
             if (typeof saveGame === 'function') saveGame(); 
             const savedData = localStorage.getItem('miniCitySave');
-            
             if (savedData) {
-                // Keep the exact same encryption formatting
                 const encodedData = btoa(encodeURIComponent(savedData));
-                
-                // Create a Blob containing the text
                 const blob = new Blob([encodedData], { type: 'text/plain' });
                 const url = URL.createObjectURL(blob);
-                
-                // Generate a filename with today's date
                 const dateStr = new Date().toISOString().split('T')[0];
-                const fileName = `DOMville_Save_${dateStr}.txt`;
+                const fileName = `MiniCity_Save_${dateStr}.txt`;
                 
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-                
-                // Clean up
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
+                const a = document.createElement('a'); a.href = url; a.download = fileName; document.body.appendChild(a); a.click();
+                document.body.removeChild(a); URL.revokeObjectURL(url);
                 if (typeof logActivity === 'function') logActivity(`City exported as ${fileName}`, "info");
-            } else {
-                alert("No save data found to export.");
-            }
+            } else { alert("No save data found to export."); }
         });
     }
 
-    // --- IMPORT FROM .TXT FILE ---
     if (importBtn) {
         importBtn.addEventListener('click', () => {
-            // Create a hidden file input on the fly
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = '.txt';
-            
-            // Listen for when the user selects a file
+            const fileInput = document.createElement('input'); fileInput.type = 'file'; fileInput.accept = '.txt';
             fileInput.onchange = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                
+                const file = e.target.files[0]; if (!file) return;
                 const reader = new FileReader();
                 reader.onload = (event) => {
-                    const inputData = event.target.result.trim();
-                    if (!inputData) return;
-                    
+                    const inputData = event.target.result.trim(); if (!inputData) return;
                     try {
-                        // Decrypt using the exact same formatting
                         const decodedData = decodeURIComponent(atob(inputData));
                         let saveData = JSON.parse(decodedData); 
 
-                        // DYNAMIC MIGRATION (In case of importing old 60x60 saves)
                         let minInterval = Infinity;
                         if (saveData.terrain && saveData.terrain.length > 0) {
                             saveData.terrain.forEach(([key]) => {
                                 const coords = key.split(',');
                                 if (coords.length === 2) {
                                     const x = Number(coords[0]); const y = Number(coords[1]);
-                                    if (x > 0 && x < minInterval) minInterval = x;
-                                    if (y > 0 && y < minInterval) minInterval = y;
+                                    if (x > 0 && x < minInterval) minInterval = x; if (y > 0 && y < minInterval) minInterval = y;
                                 }
                             });
                         }
-
                         if (minInterval > 0 && minInterval !== Infinity && minInterval !== gridSize) {
-                            const scale = gridSize / minInterval; 
-                            const offset = Math.floor(((WORLD_SIZE - (WORLD_SIZE * scale)) / 2) / gridSize) * gridSize;
-                            
-                            if (saveData.terrain) {
-                                saveData.terrain = saveData.terrain.map(([key, value]) => {
-                                    const parts = key.split(',');
-                                    if (parts.length === 2) return [`${(Number(parts[0]) * scale) + offset},${(Number(parts[1]) * scale) + offset}`, value];
-                                    return [key, value];
-                                });
-                            }
-
-                            const scaleItems = (arr) => {
-                                if (!arr) return;
-                                arr.forEach(item => {
-                                    if (item.x !== undefined) item.x = (item.x * scale) + offset;
-                                    if (item.y !== undefined) item.y = (item.y * scale) + offset;
-                                    if (item.driveway) { item.driveway.x = (item.driveway.x * scale) + offset; item.driveway.y = (item.driveway.y * scale) + offset; }
-                                });
-                            };
+                            const scale = gridSize / minInterval; const offset = Math.floor(((WORLD_SIZE - (WORLD_SIZE * scale)) / 2) / gridSize) * gridSize;
+                            if (saveData.terrain) { saveData.terrain = saveData.terrain.map(([key, value]) => { const parts = key.split(','); if (parts.length === 2) return [`${(Number(parts[0]) * scale) + offset},${(Number(parts[1]) * scale) + offset}`, value]; return [key, value]; }); }
+                            const scaleItems = (arr) => { if (!arr) return; arr.forEach(item => { if (item.x !== undefined) item.x = (item.x * scale) + offset; if (item.y !== undefined) item.y = (item.y * scale) + offset; if (item.driveway) { item.driveway.x = (item.driveway.x * scale) + offset; item.driveway.y = (item.driveway.y * scale) + offset; } }); };
                             const scalePaths = (arr) => { if (arr) arr.forEach(path => scaleItems(path)); };
-
-                            scaleItems(saveData.entities); scaleItems(saveData.trafficLights); scaleItems(saveData.roundabouts);
-                            scaleItems(saveData.busStops); scaleItems(saveData.trainStations);
-                            scalePaths(saveData.roads); scalePaths(saveData.trainTracks);
+                            scaleItems(saveData.entities); scaleItems(saveData.trafficLights); scaleItems(saveData.roundabouts); scaleItems(saveData.busStops); scaleItems(saveData.trainStations); scalePaths(saveData.roads); scalePaths(saveData.trainTracks);
                         }
-
-                        // Save to local storage and reload the game!
-                        localStorage.setItem('miniCitySave', JSON.stringify(saveData));
-                        location.reload();
-                    } catch (error) { 
-                        console.error(error);
-                        alert("Invalid or corrupted save file."); 
-                    }
+                        localStorage.setItem('miniCitySave', JSON.stringify(saveData)); location.reload();
+                    } catch (error) { console.error(error); alert("Invalid or corrupted save file."); }
                 };
-                
-                // Read the file as text
                 reader.readAsText(file);
             };
-            
-            // Trigger the file browser dialog
             fileInput.click();
         });
     }

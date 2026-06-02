@@ -1,7 +1,3 @@
-// ==========================================
-// TRAFFIC, EMERGENCIES & CAR RENDERING
-// ==========================================
-
 const CAR_SPEED = 0.03; 
 const LIGHT_INTERVAL = 180; 
 
@@ -12,7 +8,6 @@ function getRoutedPath(startObj, targetObj) {
     if (route && route.length > 0) {
         // Prepend the start building's center to animate pulling out
         route.unshift({ x: startObj.x, y: startObj.y });
-        // (Removed the duplicate target push, findPath already includes the target node!)
     }
     return route;
 }
@@ -159,7 +154,7 @@ function manageTraffic() {
     const validShops = shops.filter(s => getOccupancy(s) < (typeof ZONE_PROPS !== 'undefined' ? ZONE_PROPS['supermarket'].capacity : 15) && !s.fireLevel);
 
     cars.forEach(car => {
-        if (car.type === 'bus' || car.type === 'police' || car.type === 'ambulance' || car.type === 'firetruck' || car.type === 'deliveryTruck' || car.type === 'rioter') return; 
+        if (['bus', 'police', 'ambulance', 'firetruck', 'deliveryTruck', 'rioter', 'swat_van', 'getaway'].includes(car.type)) return; 
 
         if (car.state === 'at_home') {
             if (isMorningRush) {
@@ -235,7 +230,7 @@ function updateAndDrawCars(ctx) {
     for (let i = cars.length - 1; i >= 0; i--) {
         const car = cars[i];
         
-        // --- 1. Waiting Timer Logic (Unloading, Extinguishing, etc.) ---
+        // --- 1. Waiting Timer Logic ---
         if (car.waitTimer > 0) { 
             car.waitTimer--; 
             if (car.type === 'firetruck' && car.state === 'extinguishing') {
@@ -273,7 +268,6 @@ function updateAndDrawCars(ctx) {
                     const nextPath = getRoutedPath(startNode, car.target);
                     if (nextPath) { car.path = nextPath; car.pathIndex = 0; car.progress = 0; car.state = 'driving_route'; } else { car.waitTimer = 60; } 
                 } 
-                // --- FIXED: Delivery Truck Unloading & Returning ---
                 else if (car.state === 'unloading') {
                     if (car.target && car.target.type === 'supermarket') {
                         car.target.stockLevel = Math.min(100, (car.target.stockLevel || 0) + car.capacity);
@@ -283,7 +277,7 @@ function updateAndDrawCars(ctx) {
                     if (pathHome) { 
                         car.path = pathHome; car.pathIndex = 0; car.progress = 0; car.state = 'driving_home'; 
                     } else { 
-                        cars.splice(i, 1); continue; // Despawn immediately if trapped!
+                        cars.splice(i, 1); continue; 
                     }
                 }
             }
@@ -309,10 +303,7 @@ function updateAndDrawCars(ctx) {
             car.angle += angleDiff * 0.2;
 
             let speedModifier = 1.0; 
-            const isPoliceEmergency = (car.type === 'police' && car.state === 'driving_emergency');
-            const isAmbulanceEmergency = (car.type === 'ambulance' && (car.state === 'driving_emergency' || car.state === 'driving_hospital'));
-            const isFireEmergency = (car.type === 'firetruck' && car.state === 'driving_emergency');
-            const isEmergencyVehicle = isPoliceEmergency || isAmbulanceEmergency || isFireEmergency;
+            const isEmergencyVehicle = (car.type.startsWith('police') || car.type === 'ambulance' || car.type === 'firetruck' || car.type === 'swat_van');
 
             let actualSpeed = car.type === 'bus' ? CAR_SPEED * 0.8 : CAR_SPEED;
             if (isEmergencyVehicle) actualSpeed = CAR_SPEED * 1.5; 
@@ -348,7 +339,8 @@ function updateAndDrawCars(ctx) {
                 const RADAR_DIST = isLarge ? gridSize * 1.5 : gridSize;
 
                 for (const otherCar of cars) {
-                    if (car.id === otherCar.id || otherCar.state.startsWith('at_')) continue; 
+                    // --- FIXED BUG HERE: Added !otherCar.state check so radar ignores SWAT and Getaways safely ---
+                    if (car.id === otherCar.id || !otherCar.state || otherCar.state.startsWith('at_')) continue; 
                     
                     const dx = otherCar.realX - car.realX; 
                     const dy = otherCar.realY - car.realY;
@@ -387,7 +379,6 @@ function updateAndDrawCars(ctx) {
                 }
             }
 
-            // --- FIXED: Ghost Mode to break permanent gridlocks ---
             if (speedModifier === 0) { 
                 car.stuckTimer = (car.stuckTimer || 0) + 1; 
                 if (car.stuckTimer > 150) speedModifier = 1.0; 
@@ -427,7 +418,6 @@ function updateAndDrawCars(ctx) {
                     } else { cars.splice(i, 1); continue; }
                 } 
             } 
-            // --- FIXED: Despawn Delivery Trucks at Home ---
             else if (car.type === 'deliveryTruck') {
                 if (car.state === 'driving_delivery') { car.state = 'unloading'; car.waitTimer = 240; } 
                 else if (car.state === 'driving_home') { cars.splice(i, 1); continue; }
@@ -452,6 +442,7 @@ function updateAndDrawCars(ctx) {
     }
 }
 
+// --- UPGRADED RENDERER FOR SWAT AND GETAWAY CARS ---
 function drawCarShape(ctx, car, nightMode) {
     if (car.type === 'rioter') {
         ctx.save(); ctx.translate(car.realX, car.realY);
@@ -479,12 +470,14 @@ function drawCarShape(ctx, car, nightMode) {
     }
 
     const isBus = car.type === 'bus'; 
-    const isPolice = car.type === 'police'; 
+    const isPolice = car.type.startsWith('police'); 
+    const isSwat = car.type === 'swat_van';
+    const isGetaway = car.type === 'getaway';
     const isAmbulance = car.type === 'ambulance'; 
     const isFiretruck = car.type === 'firetruck'; 
     
-    const carWidth = isBus || isFiretruck ? gridSize * 0.7 : gridSize * 0.4; 
-    const carHeight = isBus || isFiretruck ? gridSize * 0.3 : gridSize * 0.25;
+    const carWidth = (isBus || isFiretruck || isSwat) ? gridSize * 0.7 : gridSize * 0.4; 
+    const carHeight = (isBus || isFiretruck || isSwat) ? gridSize * 0.3 : gridSize * 0.25;
     
     ctx.save(); ctx.translate(car.realX, car.realY); ctx.rotate(car.angle);
 
@@ -493,14 +486,23 @@ function drawCarShape(ctx, car, nightMode) {
 
     if (isAmbulance) { ctx.fillStyle = '#e74c3c'; ctx.fillRect(-carWidth/4, -carHeight/2, carWidth/2, carHeight); }
     if (isFiretruck) { ctx.fillStyle = '#bdc3c7'; ctx.fillRect(-carWidth/2 + 4, -2, carWidth - 8, 4); ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(carWidth/2 - 6, -carHeight/2 + 2, 4, carHeight - 4); }
+    if (isSwat) { ctx.fillStyle = '#111111'; ctx.fillRect(-carWidth/4, -carHeight/2 + 2, carWidth/2, carHeight - 4); } // Heavy Armored look
+    if (isGetaway) { ctx.fillStyle = '#333'; ctx.fillRect(-carWidth/4, -carHeight/2 + 1, carWidth/2, carHeight - 2); } // Tinted windows
 
-    if (isPolice && (car.state === 'driving_emergency' || car.state === 'police_clearing')) {
+    // Sirens and Flashers
+    if (isPolice && (car.state === 'driving_emergency' || car.state === 'police_clearing' || car.state === 'driving_to_crime' || car.state === 'patrolling' || car.type === 'police_pursuit')) {
         const time = Date.now(); if (time % 300 < 150) { ctx.fillStyle = '#ff0000'; ctx.fillRect(-2, -carHeight/2 - 2, 4, 3); } else { ctx.fillStyle = '#0000ff'; ctx.fillRect(-2, carHeight/2 - 1, 4, 3); }
+    }
+    if (isSwat) {
+        const time = Date.now(); if (time % 300 < 150) { ctx.fillStyle = '#0000ff'; ctx.fillRect(-2, -carHeight/2 - 2, 4, 3); } else { ctx.fillStyle = '#ffffff'; ctx.fillRect(-2, carHeight/2 - 1, 4, 3); }
     }
     if ((isAmbulance || isFiretruck) && (car.state === 'driving_emergency' || car.state === 'driving_hospital' || car.state === 'ambulance_loading' || car.state === 'extinguishing')) {
         const time = Date.now(); if (time % 300 < 150) { ctx.fillStyle = '#ff0000'; ctx.fillRect(-2, -carHeight/2 - 2, 4, 3); } else { ctx.fillStyle = '#ffffff'; ctx.fillRect(-2, carHeight/2 - 1, 4, 3); }
     }
     
-    if (nightMode && !isPolice && !isAmbulance && !isFiretruck) { ctx.fillStyle = 'rgba(255, 255, 150, 0.9)'; ctx.fillRect(carWidth/2 - 2, -carHeight/2 + 2, 3, 3); ctx.fillRect(carWidth/2 - 2, carHeight/2 - 5, 3, 3); }
+    // Headlights for Night Mode
+    if (nightMode && !isPolice && !isAmbulance && !isFiretruck && !isSwat && !isGetaway) { ctx.fillStyle = 'rgba(255, 255, 150, 0.9)'; ctx.fillRect(carWidth/2 - 2, -carHeight/2 + 2, 3, 3); ctx.fillRect(carWidth/2 - 2, carHeight/2 - 5, 3, 3); }
+    if (nightMode && isGetaway) { ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'; ctx.fillRect(carWidth/2 - 2, -carHeight/2 + 2, 3, 3); ctx.fillRect(carWidth/2 - 2, carHeight/2 - 5, 3, 3); }
+    
     ctx.restore();
 }

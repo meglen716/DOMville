@@ -34,7 +34,7 @@ const BLUEPRINTS = {
     },
     farm: {
         width: 26, height: 28, 
-        colors: { base: '#ff4757', door: '#ced6e0', blades: '#2f3542', hub: '#a4b0be' } 
+        colors: { base: '#ff4757', door: '#ced6e0', blades: '#404040', hub: '#2c3e50' } 
     },
     hospital: {
         width: 26, height: 26, 
@@ -249,6 +249,7 @@ function drawBuilding(ctx, ent, gridSize, nightMode) {
             break;
 
         case 'farm':
+            // 1. Draw the Base Barn (Pitched Roof Silhouette)
             ctx.fillStyle = style.colors.base;
             ctx.beginPath();
             ctx.moveTo(-w/2, h/2);      
@@ -259,25 +260,36 @@ function drawBuilding(ctx, ent, gridSize, nightMode) {
             ctx.fill(); 
             if (showLines) ctx.stroke();
             
+            // 2. Draw the Barn Door
             const doorW = w * 0.45;
             const doorH = h * 0.55;
             ctx.fillStyle = style.colors.door;
             ctx.fillRect(-doorW/2, h/2 - doorH, doorW, doorH); 
             if (showLines) ctx.strokeRect(-doorW/2, h/2 - doorH, doorW, doorH);
-            
             if (showLines) {
                 ctx.beginPath(); ctx.moveTo(0, h/2 - doorH); ctx.lineTo(0, h/2); ctx.stroke();
             }
 
+            // 3. Draw the Spinning Windmill Blades
             ctx.save();
             ctx.translate(0, -h/4 + 2); 
-            ctx.rotate(time / 400); 
+            
+            // The magic math that makes it spin smoothly based on real-time!
+            let isStorming = typeof getWeatherState === 'function' && getWeatherState().toUpperCase() === 'STORM';
+            let spinSpeed = isStorming ? 750 : 1500; // 750ms in a storm, 1500ms normally
+            let angle = (time % spinSpeed) / spinSpeed * (Math.PI * 2);
+            
+            ctx.rotate(angle); 
+            
+            // Draw the 4 intersecting wooden blades
             ctx.fillStyle = style.colors.blades;
             for (let i = 0; i < 4; i++) {
-                ctx.fillRect(-1.5, -11, 3, 11); 
-                if (showLines) ctx.strokeRect(-1.5, -11, 3, 11);
+                ctx.fillRect(-2, -12, 4, 10); 
+                if (showLines) ctx.strokeRect(-2, -12, 4, 10);
                 ctx.rotate(Math.PI / 2); 
             }
+            
+            // 4. Draw the Center Hub Pin
             ctx.beginPath();
             ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
             ctx.fillStyle = style.colors.hub;
