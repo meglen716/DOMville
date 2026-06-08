@@ -130,10 +130,11 @@ function manageTraffic() {
         if (house.fireLevel > 0) return; 
         const houseCars = cars.filter(car => car.home === house);
         
+        // --- BUFFED TRANSIT REACH (12 Grids!) ---
         let coveredByTransit = false;
         for (const stop of busStops) { const dist = Math.sqrt(Math.pow(stop.x - house.x, 2) + Math.pow(stop.y - house.y, 2)); if (dist <= gridSize * 3.5) { coveredByTransit = true; break; } }
         if (!coveredByTransit && typeof activeTrains !== 'undefined' && activeTrains.length > 0) {
-            for (const station of trainStations) { const dist = Math.sqrt(Math.pow(station.x - house.x, 2) + Math.pow(station.y - house.y, 2)); if (dist <= gridSize * 7) { coveredByTransit = true; break; } }
+            for (const station of trainStations) { const dist = Math.sqrt(Math.pow(station.x - house.x, 2) + Math.pow(station.y - house.y, 2)); if (dist <= gridSize * 12) { coveredByTransit = true; break; } }
         }
 
         let limit = (house.level && house.level >= 2) ? 2 : 1; 
@@ -159,14 +160,25 @@ function manageTraffic() {
         if (car.state === 'at_home') {
             if (isMorningRush) {
                 if (Math.random() < 0.02) { 
-                    let workplaces = [];
-                    if (validOffices.length > 0) workplaces = workplaces.concat(validOffices);
-                    if (validSchools.length > 0) workplaces = workplaces.concat(validSchools);
+                    const validStations = (typeof trainStations !== 'undefined' && typeof activeTrains !== 'undefined' && activeTrains.length > 0) ? trainStations : [];
                     
-                    if (workplaces.length > 0) {
-                        car.target = workplaces[Math.floor(Math.random() * workplaces.length)];
-                        const pathToWork = getRoutedPath(car.home, car.target);
-                        if (pathToWork) { car.path = pathToWork; car.pathIndex = 0; car.progress = 0; car.state = 'driving_work'; car.isErrand = false; }
+                    // --- PARK AND RIDE ---
+                    if (validStations.length > 0 && Math.random() < 0.40) {
+                        car.target = validStations[Math.floor(Math.random() * validStations.length)];
+                        const pathToStation = getRoutedPath(car.home, car.target);
+                        if (pathToStation) { car.path = pathToStation; car.pathIndex = 0; car.progress = 0; car.state = 'driving_station'; car.isErrand = false; }
+                    } 
+                    // --- NORMAL COMMUTE ---
+                    else {
+                        let workplaces = [];
+                        if (validOffices.length > 0) workplaces = workplaces.concat(validOffices);
+                        if (validSchools.length > 0) workplaces = workplaces.concat(validSchools);
+                        
+                        if (workplaces.length > 0) {
+                            car.target = workplaces[Math.floor(Math.random() * workplaces.length)];
+                            const pathToWork = getRoutedPath(car.home, car.target);
+                            if (pathToWork) { car.path = pathToWork; car.pathIndex = 0; car.progress = 0; car.state = 'driving_work'; car.isErrand = false; }
+                        }
                     }
                 }
             } else if ((isMidday || isWeekendDay) && validShops.length > 0) { 
@@ -339,7 +351,6 @@ function updateAndDrawCars(ctx) {
                 const RADAR_DIST = isLarge ? gridSize * 1.5 : gridSize;
 
                 for (const otherCar of cars) {
-                    // --- FIXED BUG HERE: Added !otherCar.state check so radar ignores SWAT and Getaways safely ---
                     if (car.id === otherCar.id || !otherCar.state || otherCar.state.startsWith('at_')) continue; 
                     
                     const dx = otherCar.realX - car.realX; 
@@ -426,6 +437,18 @@ function updateAndDrawCars(ctx) {
             else if (car.state === 'driving_work') { car.state = 'at_work'; } 
             else if (car.state === 'driving_shop') { car.state = 'at_shop'; car.waitTimer = 180; } 
             else if (car.state === 'driving_home') { car.state = 'at_home'; if (typeof handleCarReturnedHome === 'function') handleCarReturnedHome(car.home); }
+            
+            // --- NEW: PARK AND RIDE ARRIVAL ---
+            else if (car.state === 'driving_station') { 
+                if (typeof spawnPassengers === 'function' && car.target) {
+                    let startX = car.target.driveway ? car.target.driveway.x + gridSize/2 : car.realX;
+                    let startY = car.target.driveway ? car.target.driveway.y + gridSize/2 : car.realY;
+                    spawnPassengers(startX, startY, car.target.x + gridSize/2, car.target.y + gridSize/2, 2); 
+                }
+                cars.splice(i, 1); 
+                continue; 
+            }
+
             else if (car.state === 'rioting') {
                 if (typeof roads !== 'undefined' && roads.length > 0) {
                     let endPath = roads[Math.floor(Math.random() * roads.length)];
@@ -486,8 +509,8 @@ function drawCarShape(ctx, car, nightMode) {
 
     if (isAmbulance) { ctx.fillStyle = '#e74c3c'; ctx.fillRect(-carWidth/4, -carHeight/2, carWidth/2, carHeight); }
     if (isFiretruck) { ctx.fillStyle = '#bdc3c7'; ctx.fillRect(-carWidth/2 + 4, -2, carWidth - 8, 4); ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(carWidth/2 - 6, -carHeight/2 + 2, 4, carHeight - 4); }
-    if (isSwat) { ctx.fillStyle = '#111111'; ctx.fillRect(-carWidth/4, -carHeight/2 + 2, carWidth/2, carHeight - 4); } // Heavy Armored look
-    if (isGetaway) { ctx.fillStyle = '#333'; ctx.fillRect(-carWidth/4, -carHeight/2 + 1, carWidth/2, carHeight - 2); } // Tinted windows
+    if (isSwat) { ctx.fillStyle = '#111111'; ctx.fillRect(-carWidth/4, -carHeight/2 + 2, carWidth/2, carHeight - 4); } 
+    if (isGetaway) { ctx.fillStyle = '#333'; ctx.fillRect(-carWidth/4, -carHeight/2 + 1, carWidth/2, carHeight - 2); } 
 
     // Sirens and Flashers
     if (isPolice && (car.state === 'driving_emergency' || car.state === 'police_clearing' || car.state === 'driving_to_crime' || car.state === 'patrolling' || car.type === 'police_pursuit')) {

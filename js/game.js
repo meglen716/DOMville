@@ -292,7 +292,11 @@ if (taxSlider && taxValDisplay) {
     taxSlider.addEventListener('input', (e) => { currentTaxRate = e.target.value / 10; taxValDisplay.innerText = `${e.target.value}%`; updateTooltips(); }); 
 }
 
-const closeInfoBtn = document.getElementById('close-info'); if (closeInfoBtn) { closeInfoBtn.addEventListener('click', () => { const panel = document.getElementById('info-panel'); if (panel) panel.classList.add('hidden'); selectedEntity = null; }); }
+const closeInfoBtn = document.getElementById('close-info'); 
+if (closeInfoBtn) { 
+    closeInfoBtn.style.display = 'none'; // Programmatically hide 'X'
+    closeInfoBtn.addEventListener('click', () => { const panel = document.getElementById('info-panel'); if (panel) panel.classList.add('hidden'); selectedEntity = null; }); 
+}
 
 function updateInfoPanel() {
     if (!selectedEntity) return;
@@ -322,11 +326,14 @@ function updateInfoPanel() {
             const multiplier = selectedEntity.type === 'factory' ? 2.5 : (selectedEntity.type === 'office' ? 2.0 : 1.5);
             yieldAmount = Math.floor(occ * multiplier * currentTaxRate);
         }
+    } else if (selectedEntity.type === 'trainStation') {
+        if (typeof getTrainStationInfoHTML === 'function') {
+            html += getTrainStationInfoHTML(typeof activeTrains !== 'undefined' ? activeTrains : []);
+        }
     }
 
     html += `<hr style="border-color:#444; margin: 10px 0;">`;
     
-    // HIDDEN YIELDS: Do not show income or upkeep if the building is ruined, abandoned, or rebuilding!
     if (yieldAmount > 0 && !selectedEntity.isAbandoned && !selectedEntity.isBurned && !selectedEntity.isRebuilding) {
         html += `<div class="info-stat">💰 Tax Yield: <span class="good" style="color:#2ecc71; font-weight:bold;">+$${yieldAmount}</span></div>`;
     }
@@ -334,9 +341,11 @@ function updateInfoPanel() {
         html += `<div class="info-stat">💸 Upkeep: <span class="bad" style="color:#e74c3c; font-weight:bold;">-$${upkeepAmount}</span></div>`;
     }
 
-    html += `<div class="info-stat">⚡ Power: ${selectedEntity.hasPower === false ? '<span class="bad">NONE</span>' : '<span class="good">OK</span>'}</div>`;
-    html += `<div class="info-stat">💧 Water: ${selectedEntity.hasWater === false ? '<span class="bad">NONE</span>' : '<span class="good">OK</span>'}</div>`;
-    html += `<div class="info-stat">🛣️ Roads: ${selectedEntity.hasRoad === false ? '<span class="bad">NONE</span>' : '<span class="good">OK</span>'}</div>`;
+    if (selectedEntity.type !== 'trainStation') {
+        html += `<div class="info-stat">⚡ Power: ${selectedEntity.hasPower === false ? '<span class="bad">NONE</span>' : '<span class="good">OK</span>'}</div>`;
+        html += `<div class="info-stat">💧 Water: ${selectedEntity.hasWater === false ? '<span class="bad">NONE</span>' : '<span class="good">OK</span>'}</div>`;
+        html += `<div class="info-stat">🛣️ Roads: ${selectedEntity.hasRoad === false ? '<span class="bad">NONE</span>' : '<span class="good">OK</span>'}</div>`;
+    }
 
     if (selectedEntity.fireLevel > 0) html += `<div class="info-stat bad">🔥 ON FIRE! (${Math.floor(selectedEntity.fireLevel)})</div>`;
     if (selectedEntity.isAbandoned) html += `<div class="info-stat bad">👻 ABANDONED</div>`;
@@ -416,15 +425,54 @@ function performDeletion(clientX, clientY) {
     if (!deletedSomething) {
         for (let i = trainTracks.length - 1; i >= 0; i--) {
             const nodeIndex = trainTracks[i].findIndex(node => node.x === gridX && node.y === gridY);
-            if (nodeIndex > -1) { const deletedTrack = trainTracks.splice(i, 1)[0]; deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 20, '#5c4033', gridSize); deletedTrack.forEach(node => refund('trainTrack')); break; }
+            if (nodeIndex > -1) { 
+                const track = trainTracks[i];
+                
+                // 1. Refund just the single track tile and spawn dust
+                refund('trainTrack');
+                if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 20, '#5c4033', gridSize); 
+                
+                // 2. Slice the track into two halves (before the click, and after the click)
+                const before = track.slice(0, nodeIndex);
+                const after = track.slice(nodeIndex + 1);
+                
+                // 3. Remove the old long track, and save the remaining pieces
+                trainTracks.splice(i, 1);
+                if (after.length > 0) trainTracks.push(after);
+                if (before.length > 0) trainTracks.push(before);
+                
+                deletedSomething = true; 
+                break; 
+            }
         }
     }
+    
     if (!deletedSomething) {
         for (let i = roads.length - 1; i >= 0; i--) {
             const nodeIndex = roads[i].findIndex(node => node.x === gridX && node.y === gridY);
-            if (nodeIndex > -1) { const deletedRoad = roads.splice(i, 1)[0]; deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 20, '#505050', gridSize); deletedRoad.forEach(node => refund(node.type || 'road')); break; }
+            if (nodeIndex > -1) { 
+                const roadPath = roads[i];
+                const deletedNode = roadPath[nodeIndex];
+                
+                // 1. Refund just the single road tile and spawn dust
+                refund(deletedNode.type || 'road');
+                if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 20, '#505050', gridSize); 
+                
+                // 2. Slice the road into two halves
+                const before = roadPath.slice(0, nodeIndex);
+                const after = roadPath.slice(nodeIndex + 1);
+                
+                // 3. Remove the old long road, and save the remaining pieces
+                roads.splice(i, 1);
+                if (after.length > 0) roads.push(after);
+                if (before.length > 0) roads.push(before);
+                
+                deletedSomething = true; 
+                break; 
+            }
         }
     }
+    
     if (deletedSomething) {
         for (let i = cars.length - 1; i >= 0; i--) {
             const car = cars[i];
@@ -489,14 +537,41 @@ function handleInputStart(e, clientX, clientY, isRightClick) {
 
     const { gridX, gridY } = getGridCoords(clientX, clientY); 
     const terrainType = typeof getTerrainAt === 'function' ? getTerrainAt(gridX, gridY) : null;
+    
     const entityIndex = entities.findIndex(ent => ent.x === gridX && ent.y === gridY); 
+    const stationIndex = trainStations.findIndex(s => s.x === gridX && s.y === gridY);
     const panel = document.getElementById('info-panel');
 
     if (window.currentTool === 'rebuild') { isDraggingRebuild = true; rebuildStart = { x: gridX, y: gridY }; rebuildCurrent = { x: gridX, y: gridY }; return; }
     if (window.currentTool === 'delete') { isDeleting = true; performDeletion(clientX, clientY); return; }
 
-    if (entityIndex > -1) { selectedEntity = entities[entityIndex]; updateInfoPanel(); if (panel) panel.classList.remove('hidden'); return; } 
-    else { selectedEntity = null; if (panel) panel.classList.add('hidden'); }
+    // Define which tools need to drag starting from inside buildings
+    const isPathTool = ['road', 'bridge', 'tunnel', 'trainTrack'].includes(window.currentTool);
+
+    if (!isPathTool) {
+        // Normal Click to Inspect / Click-Away to close
+        if (entityIndex > -1) { 
+            selectedEntity = entities[entityIndex]; 
+            updateInfoPanel(); 
+            if (panel) panel.classList.remove('hidden'); 
+            return; 
+        } else if (stationIndex > -1) {
+            selectedEntity = trainStations[stationIndex];
+            selectedEntity.type = 'trainStation';
+            updateInfoPanel();
+            if (panel) panel.classList.remove('hidden');
+            return;
+        } else { 
+            selectedEntity = null; 
+            if (panel) panel.classList.add('hidden'); 
+        }
+    } else {
+        // If holding a track/road tool, close the panel if clicking empty land, but DO NOT stop the code!
+        if (entityIndex === -1 && stationIndex === -1) {
+            selectedEntity = null; 
+            if (panel) panel.classList.add('hidden'); 
+        }
+    }
 
     if (!window.currentTool) return; 
 
@@ -509,15 +584,29 @@ function handleInputStart(e, clientX, clientY, isRightClick) {
         let cost = alreadyExists ? 0 : (BUILDING_COSTS[dynamicType] || 10);
         if (currentFunds >= cost) { isDrawingRoad = true; currentRoadPath = [{ x: gridX, y: gridY, type: dynamicType }]; if (cost > 0) spendFunds(cost); }
     } else if (window.currentTool === 'trainTrack') {
-        if (terrainType === 'ocean') return; 
+        // --- NEW COASTAL TRACK RULE APPLIED HERE ---
+        if (typeof canBuildTrack === 'function' && !canBuildTrack(gridX, gridY, gridSize)) {
+            if (typeof logActivity === 'function') logActivity("Ocean tracks must be built next to land!", "bad");
+            return; 
+        }
         const alreadyExists = trainTracks.some(path => path.some(n => n.x === gridX && n.y === gridY));
         let cost = alreadyExists ? 0 : BUILDING_COSTS['trainTrack'];
         if (currentFunds >= cost) { isDrawingTrack = true; currentTrackPath = [{ x: gridX, y: gridY }]; if (cost > 0) spendFunds(cost); }
     } else if (window.currentTool === 'trainStation') {
-        if (terrainType !== null) return; if (isRoad(gridX, gridY)) return; 
+        // Allow building on flat land (null) OR on mountains ('mountain')
+        if (terrainType !== null && terrainType !== 'mountain') return; 
+        if (isRoad(gridX, gridY)) return; 
+        
         if (!trainStations.some(s => s.x === gridX && s.y === gridY)) {
-            if (typeof canBuildStation === 'function' && !canBuildStation(gridX, gridY, trainStations)) { alert("Train stations must be built further apart!"); return; }
-            let cost = BUILDING_COSTS['trainStation']; if (currentFunds >= cost) { trainStations.push({ x: gridX, y: gridY }); spendFunds(cost); }
+            if (typeof canBuildStation === 'function' && !canBuildStation(gridX, gridY, trainStations)) { 
+                alert("Train stations must be built further apart!"); 
+                return; 
+            }
+            let cost = BUILDING_COSTS['trainStation']; 
+            if (currentFunds >= cost) { 
+                trainStations.push({ x: gridX, y: gridY }); 
+                spendFunds(cost); 
+            }
         }
     } else if (window.currentTool === 'train') {
         let clickedTrackIndex = -1;
@@ -589,7 +678,8 @@ canvas.addEventListener('mousemove', (e) => {
         const lastNode = currentTrackPath[currentTrackPath.length - 1]; const dx = Math.abs(gridX - lastNode.x); const dy = Math.abs(gridY - lastNode.y);
         if ((dx === gridSize && dy === 0) || (dx === 0 && dy === gridSize)) {
             if (currentTrackPath.some(n => n.x === gridX && n.y === gridY)) return;
-            const terrainType = typeof getTerrainAt === 'function' ? getTerrainAt(gridX, gridY) : null; if (terrainType === 'ocean') return;
+            // --- NEW COASTAL TRACK RULE APPLIED HERE ---
+            if (typeof canBuildTrack === 'function' && !canBuildTrack(gridX, gridY, gridSize)) return;
             const alreadyExists = trainTracks.some(path => path.some(n => n.x === gridX && n.y === gridY));
             let cost = alreadyExists ? 0 : BUILDING_COSTS['trainTrack']; 
             if (currentFunds >= cost) { currentTrackPath.push({ x: gridX, y: gridY }); if (cost > 0) spendFunds(cost); }
@@ -608,16 +698,117 @@ canvas.addEventListener('touchmove', (e) => {
 
 canvas.addEventListener('mouseleave', () => { currentHover.x = null; currentHover.y = null; });
 
+// --- PATH AUTO-MERGE LOGIC ---
+function finishDrawingPaths() {
+    // 1. ROAD MERGING
+    if (isDrawingRoad) { 
+        isDrawingRoad = false; 
+        
+        if (currentRoadPath.length > 1) {
+            let merged = false;
+            const firstNew = currentRoadPath[0];
+            const lastNew = currentRoadPath[currentRoadPath.length - 1];
+
+            // Auto-merge with existing roads so dashed lines connect seamlessly!
+            for (let i = 0; i < roads.length; i++) {
+                const road = roads[i];
+                if (road.length === 0) continue;
+                
+                const firstOld = road[0];
+                const lastOld = road[road.length - 1];
+
+                // A. New road continues from the END of an old road
+                if (firstNew.x === lastOld.x && firstNew.y === lastOld.y) {
+                    road.push(...currentRoadPath.slice(1));
+                    merged = true; break;
+                }
+                // B. New road continues from the START of an old road
+                else if (firstNew.x === firstOld.x && firstNew.y === firstOld.y) {
+                    const reversedNew = currentRoadPath.slice(1).reverse();
+                    roads[i] = reversedNew.concat(road);
+                    merged = true; break;
+                }
+                // C. New road drawn BACKWARDS into the END of an old road
+                else if (lastNew.x === lastOld.x && lastNew.y === lastOld.y) {
+                    const reversedNew = currentRoadPath.slice(0, -1).reverse();
+                    road.push(...reversedNew);
+                    merged = true; break;
+                }
+                // D. New road drawn BACKWARDS into the START of an old road
+                else if (lastNew.x === firstOld.x && lastNew.y === firstOld.y) {
+                    const newPrefix = currentRoadPath.slice(0, -1);
+                    roads[i] = newPrefix.concat(road);
+                    merged = true; break;
+                }
+            }
+            
+            // If it didn't touch an existing road, it forms a brand new line
+            if (!merged) {
+                roads.push([...currentRoadPath]);
+            }
+        }
+        currentRoadPath = []; 
+    }
+    
+    // 2. TRAIN TRACK MERGING
+    if (isDrawingTrack) { 
+        isDrawingTrack = false; 
+        
+        if (currentTrackPath.length > 1) {
+            let merged = false;
+            const firstNew = currentTrackPath[0];
+            const lastNew = currentTrackPath[currentTrackPath.length - 1];
+
+            // Auto-merge with existing tracks so trains can drive seamlessly
+            for (let i = 0; i < trainTracks.length; i++) {
+                const track = trainTracks[i];
+                if (track.length === 0) continue;
+                
+                const firstOld = track[0];
+                const lastOld = track[track.length - 1];
+
+                if (firstNew.x === lastOld.x && firstNew.y === lastOld.y) {
+                    track.push(...currentTrackPath.slice(1));
+                    merged = true; break;
+                }
+                else if (firstNew.x === firstOld.x && firstNew.y === firstOld.y) {
+                    const reversedNew = currentTrackPath.slice(1).reverse();
+                    trainTracks[i] = reversedNew.concat(track);
+                    if (typeof activeTrains !== 'undefined') activeTrains.forEach(t => { if (t.lineIndex === i) t.pathIndex += reversedNew.length; });
+                    merged = true; break;
+                }
+                else if (lastNew.x === lastOld.x && lastNew.y === lastOld.y) {
+                    const reversedNew = currentTrackPath.slice(0, -1).reverse();
+                    track.push(...reversedNew);
+                    merged = true; break;
+                }
+                else if (lastNew.x === firstOld.x && lastNew.y === firstOld.y) {
+                    const newPrefix = currentTrackPath.slice(0, -1);
+                    trainTracks[i] = newPrefix.concat(track);
+                    if (typeof activeTrains !== 'undefined') activeTrains.forEach(t => { if (t.lineIndex === i) t.pathIndex += newPrefix.length; });
+                    merged = true; break;
+                }
+            }
+            
+            if (!merged) {
+                trainTracks.push([...currentTrackPath]);
+            }
+        }
+        currentTrackPath = []; 
+    }
+}
+
 canvas.addEventListener('mouseup', (e) => {
     if (e.button === 1 || e.button === 2) { isPanning = false; return; }
-    if (isDrawingRoad) { isDrawingRoad = false; if (currentRoadPath.length > 1) roads.push([...currentRoadPath]); currentRoadPath = []; }
-    if (isDrawingTrack) { isDrawingTrack = false; if (currentTrackPath.length > 1) trainTracks.push([...currentTrackPath]); currentTrackPath = []; }
+    finishDrawingPaths();
     if (isDeleting) isDeleting = false;
     if (isDraggingRebuild && window.currentTool === 'rebuild') { isDraggingRebuild = false; processRebuildArea(rebuildStart, rebuildCurrent, gridSize, entities); }
 });
 
 canvas.addEventListener('touchend', () => {
-    isPanning = false; isDrawingRoad = false; isDrawingTrack = false; isDeleting = false;
+    isPanning = false; 
+    finishDrawingPaths();
+    isDeleting = false;
     if (isDraggingRebuild && window.currentTool === 'rebuild') { isDraggingRebuild = false; processRebuildArea(rebuildStart, rebuildCurrent, gridSize, entities); }
 });
 
@@ -633,7 +824,15 @@ canvas.addEventListener('wheel', (e) => {
 // 5. RENDER HELPERS
 // ==========================================
 function drawMinimap(ctx) {
-    const minimapSize = 200; const padding = 20; const mapX = padding; const mapY = canvas.height - minimapSize - padding - 80; const scale = minimapSize / WORLD_SIZE;
+    // Hide the minimap on mobile screens to keep the UI clean
+    if (window.innerWidth < 768) return;
+
+    const minimapSize = 200; 
+    const padding = 20; 
+    const mapX = padding; 
+    const mapY = canvas.height - minimapSize - padding - 80; 
+    const scale = minimapSize / WORLD_SIZE;
+    
     ctx.fillStyle = 'rgba(15, 25, 40, 0.85)'; ctx.fillRect(mapX, mapY, minimapSize, minimapSize);
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; ctx.lineWidth = 2; ctx.strokeRect(mapX, mapY, minimapSize, minimapSize);
 
@@ -654,7 +853,11 @@ function drawMinimap(ctx) {
 
     roundabouts.forEach(rb => { ctx.fillStyle = '#16a085'; ctx.fillRect(rb.x * scale, rb.y * scale, Math.max(2, gridSize * scale), Math.max(2, gridSize * scale)); });
     trainStations.forEach(s => { ctx.fillStyle = '#2980b9'; ctx.fillRect(s.x * scale, s.y * scale, Math.max(4, gridSize * scale), Math.max(4, gridSize * scale)); });
-    cars.forEach(car => { ctx.fillStyle = car.color; ctx.fillRect(car.realX * scale, car.realY * scale, 2, 2); });
+    
+    // Only draw cars on the minimap if the array exists
+    if (typeof cars !== 'undefined') {
+        cars.forEach(car => { ctx.fillStyle = car.color; ctx.fillRect(car.realX * scale, car.realY * scale, 2, 2); });
+    }
 
     const viewX = (-camera.x / camera.zoom) * scale; const viewY = (-camera.y / camera.zoom) * scale; const viewW = (canvas.width / camera.zoom) * scale; const viewH = (canvas.height / camera.zoom) * scale;
     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
@@ -669,84 +872,37 @@ function drawMinimap(ctx) {
     ctx.fillText('Drag: Pan Camera  •  Scroll/Pinch: Zoom', mapX, mapY + minimapSize + 28);
 }
 
-// --- DESTRUCTION RENDERERS ---
 function drawRuin(ctx, ent, gridSize) {
-    const cx = ent.x + gridSize / 2;
-    const cy = ent.y + gridSize / 2;
-    const w = gridSize * 0.7;
-    const h = gridSize * 0.6;
+    const cx = ent.x + gridSize / 2; const cy = ent.y + gridSize / 2;
+    const w = gridSize * 0.7; const h = gridSize * 0.6;
+    ctx.save(); ctx.translate(cx, cy);
 
-    ctx.save();
-    ctx.translate(cx, cy);
+    ctx.fillStyle = '#2c3e50'; 
+    ctx.beginPath(); ctx.moveTo(-w/2, h/2); ctx.lineTo(w/2, h/2); ctx.lineTo(w/2, 0); ctx.lineTo(w/4, -h/4); 
+    ctx.lineTo(0, 0); ctx.lineTo(-w/4, -h/3); ctx.lineTo(-w/2, 0); ctx.closePath(); ctx.fill();
+    if (window.showBuildingOutlines) { ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 1; ctx.stroke(); }
 
-    // Jagged Collapsed Base
-    ctx.fillStyle = '#2c3e50'; // Dark rubble color
-    ctx.beginPath();
-    ctx.moveTo(-w/2, h/2);
-    ctx.lineTo(w/2, h/2);
-    ctx.lineTo(w/2, 0);
-    ctx.lineTo(w/4, -h/4);   // Jagged dip
-    ctx.lineTo(0, 0);        // Jagged peak
-    ctx.lineTo(-w/4, -h/3);  // Jagged dip
-    ctx.lineTo(-w/2, 0);
-    ctx.closePath();
-    ctx.fill();
-    if (window.showBuildingOutlines) {
-        ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 1; ctx.stroke();
-    }
+    ctx.strokeStyle = '#111111'; ctx.lineWidth = 2; ctx.beginPath();
+    ctx.moveTo(-w/4, 0); ctx.lineTo(-w/3, -h/1.5); 
+    ctx.moveTo(0, h/4);  ctx.lineTo(w/4, -h/2);    
+    ctx.moveTo(w/3, 0);  ctx.lineTo(w/2.5, -h/1.2); ctx.stroke();
 
-    // Exposed Steel/Wood Beams Sticking Out
-    ctx.strokeStyle = '#111111';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-w/4, 0); ctx.lineTo(-w/3, -h/1.5); // Beam 1
-    ctx.moveTo(0, h/4);  ctx.lineTo(w/4, -h/2);    // Beam 2
-    ctx.moveTo(w/3, 0);  ctx.lineTo(w/2.5, -h/1.2); // Beam 3
-    ctx.stroke();
-
-    // Scattered Debris at the base
-    ctx.fillStyle = '#7f8c8d';
-    ctx.fillRect(-w/2 + 2, h/2 - 4, 6, 4);
-    ctx.fillRect(w/4, h/2 - 6, 5, 6);
+    ctx.fillStyle = '#7f8c8d'; ctx.fillRect(-w/2 + 2, h/2 - 4, 6, 4); ctx.fillRect(w/4, h/2 - 6, 5, 6);
     ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(-5, h/2 - 5); ctx.lineTo(5, h/2 - 5); ctx.fill();
-
     ctx.restore();
 }
 
 function drawAbandonedDetails(ctx, ent, gridSize) {
-    const cx = ent.x + gridSize / 2;
-    const cy = ent.y + gridSize / 2;
-    
-    ctx.save();
-    ctx.translate(cx, cy);
+    const cx = ent.x + gridSize / 2; const cy = ent.y + gridSize / 2;
+    ctx.save(); ctx.translate(cx, cy);
 
-    // Boarded-up wood planks over the center
-    ctx.strokeStyle = '#5c4033'; // Dark brown wood
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    
-    // The "X" mark
-    ctx.beginPath();
-    ctx.moveTo(-6, -6); ctx.lineTo(6, 6);
-    ctx.moveTo(6, -6);  ctx.lineTo(-6, 6);
-    ctx.stroke();
-    // Horizontal board
-    ctx.beginPath();
-    ctx.moveTo(-8, 0);  ctx.lineTo(8, 0);
-    ctx.stroke();
+    ctx.strokeStyle = '#5c4033'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-6, -6); ctx.lineTo(6, 6); ctx.moveTo(6, -6);  ctx.lineTo(-6, 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-8, 0);  ctx.lineTo(8, 0); ctx.stroke();
 
-    // Creeping Vines spreading from the bottom
-    ctx.strokeStyle = '#27ae60';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    // Left vine
-    ctx.moveTo(-gridSize/3, gridSize/3);
-    ctx.quadraticCurveTo(-gridSize/4, 0, -gridSize/3, -gridSize/4);
-    // Right vine
-    ctx.moveTo(gridSize/4, gridSize/3);
-    ctx.quadraticCurveTo(gridSize/3, 0, gridSize/5, -gridSize/5);
-    ctx.stroke();
-
+    ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 1.5; ctx.beginPath();
+    ctx.moveTo(-gridSize/3, gridSize/3); ctx.quadraticCurveTo(-gridSize/4, 0, -gridSize/3, -gridSize/4);
+    ctx.moveTo(gridSize/4, gridSize/3); ctx.quadraticCurveTo(gridSize/3, 0, gridSize/5, -gridSize/5); ctx.stroke();
     ctx.restore();
 }
 
@@ -806,16 +962,68 @@ function gameLoop() {
             if (!ent.driveway) ent.hasRoad = false;
 
             if (ent.driveway) { 
-                ctx.strokeStyle = '#404040'; ctx.lineWidth = 6; ctx.beginPath(); 
-                ctx.moveTo(ent.x + gridSize/2, ent.y + gridSize/2); 
-                ctx.lineTo(ent.driveway.x + gridSize/2, ent.driveway.y + gridSize/2); 
-                ctx.stroke(); 
+                let startX = ent.x + gridSize / 2; let startY = ent.y + gridSize / 2;
+                let endX = startX; let endY = startY;
+                let direction = ''; 
+                const floorOffset = gridSize - 8; 
+
+                if (ent.driveway.y < ent.y) { 
+                    endY = ent.y; direction = 'N'; 
+                } else if (ent.driveway.y > ent.y) { 
+                    endY = ent.y + gridSize; direction = 'S'; 
+                } else if (ent.driveway.x < ent.x) { 
+                    endX = ent.x; direction = 'W'; 
+                    startY = ent.y + floorOffset; endY = ent.driveway.y + floorOffset; 
+                } else if (ent.driveway.x > ent.x) { 
+                    endX = ent.x + gridSize; direction = 'E'; 
+                    startY = ent.y + floorOffset; endY = ent.driveway.y + floorOffset; 
+                }
+
+                ctx.save();
+                ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(endX, endY);
+                
+                if (ent.type === 'house') {
+                    ctx.strokeStyle = '#34495e'; ctx.lineWidth = 10; ctx.stroke(); 
+                    ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 6; ctx.stroke();  
+                } else if (ent.type === 'farm') {
+                    ctx.strokeStyle = 'rgba(62, 39, 35, 0.9)'; ctx.lineWidth = 6; ctx.setLineDash([4, 4]); ctx.stroke();
+                } else if (ent.type === 'factory' || ent.type === 'powerPlant') {
+                    ctx.strokeStyle = '#000000'; ctx.lineWidth = 10; ctx.stroke();
+                    ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.stroke();
+                } else if (ent.type === 'policeStation' || ent.type === 'fireStation') {
+                    ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 12; ctx.stroke();
+                    ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 2; ctx.stroke(); 
+                } else {
+                    ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 14; ctx.stroke(); 
+                    ctx.strokeStyle = '#bdc3c7'; ctx.lineWidth = 10; ctx.stroke(); 
+                }
+                ctx.restore();
+
+                if (direction === 'E' || direction === 'W') {
+                    ctx.save();
+                    const minX = Math.min(startX, endX);
+                    const maxX = Math.max(startX, endX);
+                    
+                    if (ent.type === 'house') {
+                        ctx.strokeStyle = '#2c3e50'; 
+                        ctx.lineWidth = 2;
+                        for (let px = minX + 4; px < maxX; px += 4) {
+                            ctx.beginPath(); ctx.moveTo(px, startY - 4); ctx.lineTo(px, startY + 4); ctx.stroke();
+                        }
+                    } else if (ent.type !== 'farm') {
+                        ctx.strokeStyle = '#2c3e50'; 
+                        ctx.lineWidth = 2;
+                        ctx.beginPath(); ctx.moveTo(startX, startY - 6); ctx.lineTo(endX, startY - 6); ctx.stroke();
+                        ctx.beginPath(); ctx.moveTo(startX, startY + 6); ctx.lineTo(endX, startY + 6); ctx.stroke();
+                    }
+                    ctx.restore();
+                }
             }
         }
 
         const hasBlueprint = typeof BLUEPRINTS !== 'undefined' && BLUEPRINTS[ent.type];
 
-        // --- NEW CONSTRUCTION TENT LOGIC ---
+        // --- CONSTRUCTION TENT LOGIC ---
         if (ent.isRebuilding) {
             ent.rebuildProgress += (1 / REBUILD_DURATION);
             
@@ -843,109 +1051,51 @@ function gameLoop() {
                 ctx.fillStyle = '#f1c40f'; ctx.fillRect(ent.x + 6, ent.y - 9, (gridSize - 12) * ent.rebuildProgress, 4);
             }
         } 
-        else if (ent.isBurned) {
-            // Completely replace the building with the Ruined Skeleton
-            drawRuin(ctx, ent, gridSize);
-        }
+        else if (ent.isBurned) { drawRuin(ctx, ent, gridSize); }
         else {
-            // Apply a dull, sepia filter if the building is Abandoned!
-            if (ent.isAbandoned) {
-                ctx.save();
-                ctx.filter = 'grayscale(80%) brightness(70%) sepia(30%)'; 
-            }
-
-            // Draw the actual building geometry
-            if (hasBlueprint && typeof drawBuilding === 'function') {
-                drawBuilding(ctx, ent, gridSize, nightMode);
-            } else if (typeof drawZone === 'function') {
-                drawZone(ctx, ent, gridSize, nightMode, typeof getOccupancy === 'function' ? getOccupancy(ent) : 0);
-            }
-
-            // Remove the filter and draw the Boards & Vines on top
-            if (ent.isAbandoned) {
-                ctx.restore();
-                drawAbandonedDetails(ctx, ent, gridSize);
-            }
+            if (ent.isAbandoned) { ctx.save(); ctx.filter = 'grayscale(80%) brightness(70%) sepia(30%)'; }
+            if (hasBlueprint && typeof drawBuilding === 'function') { drawBuilding(ctx, ent, gridSize, nightMode); } 
+            else if (typeof drawZone === 'function') { drawZone(ctx, ent, gridSize, nightMode, typeof getOccupancy === 'function' ? getOccupancy(ent) : 0); }
+            if (ent.isAbandoned) { ctx.restore(); drawAbandonedDetails(ctx, ent, gridSize); }
         }
 
         // --- STATE MONITOR: LOG DEATHS & ABANDONMENT ---
         let currentState = 'operational';
-        if (ent.isBurned) currentState = 'burned';
-        else if (ent.isAbandoned) currentState = 'abandoned';
-        else if (ent.isRebuilding) currentState = 'rebuilding';
+        if (ent.isBurned) currentState = 'burned'; else if (ent.isAbandoned) currentState = 'abandoned'; else if (ent.isRebuilding) currentState = 'rebuilding';
 
-        if (ent._previousState === undefined) {
-            ent._previousState = currentState;
-        } else if (ent._previousState !== currentState) {
+        if (ent._previousState === undefined) { ent._previousState = currentState; } 
+        else if (ent._previousState !== currentState) {
             if (ent.type === 'house' && ent._previousState === 'operational') {
                 let popAffected = Math.floor(10 * (ent.level || 1) * (ent.densityMult || 1.0));
-                if (currentState === 'burned') {
-                    if (typeof logActivity === 'function') logActivity(`Tragedy! ${popAffected} residents died in a ruined house.`, "bad");
-                } else if (currentState === 'abandoned') {
-                    if (typeof logActivity === 'function') logActivity(`Poor conditions! ${popAffected} residents moved out.`, "bad");
-                }
+                if (currentState === 'burned' && typeof logActivity === 'function') logActivity(`Tragedy! ${popAffected} residents died in a ruined house.`, "bad");
+                else if (currentState === 'abandoned' && typeof logActivity === 'function') logActivity(`Poor conditions! ${popAffected} residents moved out.`, "bad");
             }
             ent._previousState = currentState;
         }
 
         // --- ALERTS & OVERLAYS ---
-        // Crime Scene Police Tape!
         if (ent.isCrimeScene) {
-            ctx.save();
-            ctx.translate(ent.x, ent.y);
-            
-            // Draw diagonal yellow and black tape across the building
-            ctx.lineWidth = 4;
-            ctx.strokeStyle = '#f1c40f'; // Bright Yellow
-            ctx.beginPath();
-            ctx.moveTo(-5, gridSize * 0.8);
-            ctx.lineTo(gridSize + 5, gridSize * 0.2);
-            ctx.stroke();
-
-            ctx.strokeStyle = '#111111'; // Black dashes
-            ctx.setLineDash([8, 8]);
-            ctx.lineDashOffset = -(Date.now() / 50); // Animated crawling tape effect!
-            ctx.beginPath();
-            ctx.moveTo(-5, gridSize * 0.8);
-            ctx.lineTo(gridSize + 5, gridSize * 0.2);
-            ctx.stroke();
-            
+            ctx.save(); ctx.translate(ent.x, ent.y);
+            ctx.lineWidth = 4; ctx.strokeStyle = '#f1c40f'; 
+            ctx.beginPath(); ctx.moveTo(-5, gridSize * 0.8); ctx.lineTo(gridSize + 5, gridSize * 0.2); ctx.stroke();
+            ctx.strokeStyle = '#111111'; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -(Date.now() / 50); 
+            ctx.beginPath(); ctx.moveTo(-5, gridSize * 0.8); ctx.lineTo(gridSize + 5, gridSize * 0.2); ctx.stroke();
             ctx.restore();
         }
 
         if (ent.type === 'house') {
             if (ent.densityMult > 1.0 && !ent.isAbandoned && !ent.isBurned && !ent.isRebuilding) { 
-                const cx = ent.x + gridSize / 2;
-                const cy = ent.y + gridSize / 2;
-                
-                ctx.save();
-                ctx.translate(cx, cy);
+                const cx = ent.x + gridSize / 2; const cy = ent.y + gridSize / 2;
+                ctx.save(); ctx.translate(cx, cy);
 
-                // 3-Tone Park-Style Bushes (Left and Right front corners, level with ground)
                 const drawParkStyleBush = (bx, by) => {
-                    ctx.lineWidth = 1;
-                    ctx.strokeStyle = '#111111';
-                    
-                    // Back/Darkest leaf (Bottom-left)
-                    ctx.fillStyle = '#1e8449'; 
-                    ctx.beginPath(); ctx.arc(bx - 2.5, by + 1, 3.5, 0, Math.PI * 2); ctx.fill();
-                    if (window.showBuildingOutlines) ctx.stroke();
-                    
-                    // Mid leaf (Bottom-right)
-                    ctx.fillStyle = '#27ae60'; 
-                    ctx.beginPath(); ctx.arc(bx + 2.5, by + 1, 3, 0, Math.PI * 2); ctx.fill();
-                    if (window.showBuildingOutlines) ctx.stroke();
-                    
-                    // Top/Lightest leaf (Center-top)
-                    ctx.fillStyle = '#2ecc71'; 
-                    ctx.beginPath(); ctx.arc(bx, by - 2, 3.5, 0, Math.PI * 2); ctx.fill();
-                    if (window.showBuildingOutlines) ctx.stroke();
+                    ctx.lineWidth = 1; ctx.strokeStyle = '#111111';
+                    ctx.fillStyle = '#1e8449'; ctx.beginPath(); ctx.arc(bx - 2.5, by + 1, 3.5, 0, Math.PI * 2); ctx.fill(); if (window.showBuildingOutlines) ctx.stroke();
+                    ctx.fillStyle = '#27ae60'; ctx.beginPath(); ctx.arc(bx + 2.5, by + 1, 3, 0, Math.PI * 2); ctx.fill(); if (window.showBuildingOutlines) ctx.stroke();
+                    ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.arc(bx, by - 2, 3.5, 0, Math.PI * 2); ctx.fill(); if (window.showBuildingOutlines) ctx.stroke();
                 };
 
-                // Draw anchored at the exact bottom corners of the house base
-                drawParkStyleBush(-11, 14);
-                drawParkStyleBush(11, 14);
-
+                drawParkStyleBush(-11, 14); drawParkStyleBush(11, 14);
                 ctx.restore();
             }
         }
@@ -965,10 +1115,10 @@ function gameLoop() {
     if (typeof manageTrains === 'function') manageTrains(trainTracks, trainStations);
     if (typeof updateAndDrawTrains === 'function') updateAndDrawTrains(ctx, trainTracks, gridSize, nightMode);
 
-    trainStations.forEach(station => {
-        station.type = 'trainStation'; 
-        if (typeof drawBuilding === 'function') drawBuilding(ctx, station, gridSize, nightMode);
-    });
+    // Delegate train station drawing to train.js
+    if (typeof renderTrainStations === 'function') {
+        renderTrainStations(ctx, trainStations, gridSize, nightMode, isRoad);
+    }
 
     if (typeof updateAndDrawCars === 'function') updateAndDrawCars(ctx);
     if (typeof updateAndDrawParticles === 'function') updateAndDrawParticles(ctx);
@@ -1010,10 +1160,8 @@ function gameLoop() {
 
     // --- ECONOMY HIDING TRICK ---
     entities.forEach(ent => {
-        // Add ent.isCrimeScene to this list!
         if (ent.isBurned || ent.isAbandoned || ent.isRebuilding || ent.isCrimeScene) {
-            ent._tempType = ent.type;
-            ent.type = 'disabled_structure'; 
+            ent._tempType = ent.type; ent.type = 'disabled_structure'; 
         }
     });
 
@@ -1027,12 +1175,8 @@ function gameLoop() {
         taxTimer = 0;
     }
 
-    // Restore their true identities for the next drawing frame
     entities.forEach(ent => {
-        if (ent._tempType) {
-            ent.type = ent._tempType;
-            delete ent._tempType;
-        }
+        if (ent._tempType) { ent.type = ent._tempType; delete ent._tempType; }
     });
 
     drawMinimap(ctx);
@@ -1104,4 +1248,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Auto-save the city to LocalStorage every 5 seconds
+setInterval(saveGame, 5000);
 requestAnimationFrame(gameLoop);

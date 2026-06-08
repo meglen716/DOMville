@@ -2,7 +2,7 @@ const BLUEPRINTS = {
     // --- ALL BUILDINGS (Grid size is 40x40, max building size ~30x30 to allow margins) ---
     house: {
         width: 24, height: 24,
-        colors: { base: '#d1d8e0', roof: '#ff4757', nightWindows: '#ffa502' }
+        colors: { base: '#ced6e0', roof: '#ff4757', nightWindows: '#ffa502' }
     },
     supermarket: { 
         width: 26, height: 26, 
@@ -82,6 +82,17 @@ function drawBuilding(ctx, ent, gridSize, nightMode) {
             const hH = lvl === 3 ? h * 0.9 : h * 0.6;
             const yOffset = lvl === 3 ? -h * 0.2 : 0;
             
+            // Silhouette Shadow
+            ctx.save(); ctx.translate(4, 4); ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(-hW/2, yOffset, hW, hH); 
+            ctx.beginPath();
+            ctx.moveTo(-hW/2 - 4, yOffset);
+            ctx.lineTo(hW/2 + 4, yOffset);
+            ctx.lineTo(0, yOffset - h*0.4);
+            ctx.closePath(); ctx.fill(); 
+            ctx.restore();
+
+            ctx.fillStyle = style.colors.base;
             ctx.fillRect(-hW/2, yOffset, hW, hH); 
             if (showLines) ctx.strokeRect(-hW/2, yOffset, hW, hH);
             
@@ -90,12 +101,10 @@ function drawBuilding(ctx, ent, gridSize, nightMode) {
             ctx.moveTo(-hW/2 - 4, yOffset);
             ctx.lineTo(hW/2 + 4, yOffset);
             ctx.lineTo(0, yOffset - h*0.4);
-            ctx.closePath();
-            ctx.fill(); 
+            ctx.closePath(); ctx.fill(); 
             if (showLines) ctx.stroke();
 
             ctx.fillStyle = (nightMode && ent.hasPower !== false) ? style.colors.nightWindows : '#34495e';
-            
             if (lvl === 1) {
                 ctx.fillRect(-2, yOffset + hH/2 - 4, 4, 6); 
                 if (showLines) ctx.strokeRect(-2, yOffset + hH/2 - 4, 4, 6);
@@ -110,6 +119,11 @@ function drawBuilding(ctx, ent, gridSize, nightMode) {
             break;
 
         case 'supermarket': 
+            // Silhouette Shadow
+            ctx.save(); ctx.translate(4, 4); ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(-w/2, -h/2 + 8, w, h - 8);
+            ctx.restore();
+
             ctx.fillStyle = style.colors.base;
             ctx.fillRect(-w/2, -h/2 + 8, w, h - 8);
             if (showLines) ctx.strokeRect(-w/2, -h/2 + 8, w, h - 8);
@@ -119,11 +133,8 @@ function drawBuilding(ctx, ent, gridSize, nightMode) {
             ctx.fillStyle = style.colors.stripe3; ctx.fillRect(-w/2 - 2, -h/2 + 10, w + 4, 2);
             if (showLines) ctx.strokeRect(-w/2 - 2, -h/2 + 4, w + 4, 8); 
             
-            ctx.fillStyle = style.colors.stripe2;
-            ctx.font = 'bold 12px sans-serif'; 
-            ctx.textAlign = 'center'; 
-            ctx.textBaseline = 'middle';
-            ctx.fillText('7', 0, 4);
+            ctx.fillStyle = style.colors.stripe2; ctx.font = 'bold 12px sans-serif'; 
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('7', 0, 4);
 
             ctx.fillStyle = nightMode ? '#f1c40f' : '#85c1e9';
             ctx.fillRect(-6, h/2 - 8, 12, 8);
@@ -131,6 +142,11 @@ function drawBuilding(ctx, ent, gridSize, nightMode) {
             break;
 
         case 'office':
+            // Silhouette Shadow
+            ctx.save(); ctx.translate(4, 4); ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(-w/2, -h/2 + 2, w, h - 2);
+            ctx.restore();
+
             ctx.fillStyle = style.colors.base;
             ctx.fillRect(-w/2, -h/2 + 2, w, h - 2); 
             if (showLines) ctx.strokeRect(-w/2, -h/2 + 2, w, h - 2);
@@ -138,21 +154,22 @@ function drawBuilding(ctx, ent, gridSize, nightMode) {
             ctx.fillStyle = (nightMode && ent.hasPower !== false) ? style.colors.nightWindows : style.colors.windows;
             for (let row = 0; row < 3; row++) {
                 for (let col = 0; col < 2; col++) {
-                    let wx = -w/4 - 3 + col * (w/2 + 2);
-                    let wy = -h/2 + 6 + row * 7;
-                    ctx.fillRect(wx, wy, 4, 4);
-                    if (showLines) ctx.strokeRect(wx, wy, 4, 4);
+                    let wx = -w/4 - 3 + col * (w/2 + 2); let wy = -h/2 + 6 + row * 7;
+                    ctx.fillRect(wx, wy, 4, 4); if (showLines) ctx.strokeRect(wx, wy, 4, 4);
                 }
             }
-            
             ctx.fillStyle = style.colors.bush;
-            ctx.beginPath(); 
-            ctx.arc(w/2 - 2, h/2 - 2, 4, 0, Math.PI * 2); 
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(w/2 - 2, h/2 - 2, 4, 0, Math.PI * 2); ctx.fill();
             if (showLines) ctx.stroke();
             break;
 
         case 'policeStation':
+            // Silhouette Shadow
+            ctx.save(); ctx.translate(4, 4); ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(-w/2, -h/2 + 8, w, h - 8); // Base
+            ctx.fillRect(-w/2 - 2, -h/2, w + 4, 8); // Roof
+            ctx.restore();
+
             ctx.fillStyle = style.colors.base;
             ctx.fillRect(-w/2, -h/2 + 8, w, h - 8);
             if (showLines) ctx.strokeRect(-w/2, -h/2 + 8, w, h - 8);
@@ -162,36 +179,42 @@ function drawBuilding(ctx, ent, gridSize, nightMode) {
             if (showLines) ctx.strokeRect(-w/2 - 2, -h/2, w + 4, 8);
             
             ctx.fillStyle = '#f1c40f';
-            ctx.beginPath();
-            ctx.arc(0, -h/2 + 4, 3.5, 0, Math.PI * 2);
-            ctx.fill(); 
+            ctx.beginPath(); ctx.arc(0, -h/2 + 4, 3.5, 0, Math.PI * 2); ctx.fill(); 
             if (showLines) ctx.stroke();
             
-            ctx.fillStyle = style.colors.door;
-            ctx.fillRect(-6, h/2 - 10, 12, 10);
+            ctx.fillStyle = style.colors.door; ctx.fillRect(-6, h/2 - 10, 12, 10);
             if (showLines) ctx.strokeRect(-6, h/2 - 10, 12, 10);
             break;
 
         case 'waterPump':
+            // Silhouette Shadow
+            ctx.save(); ctx.translate(4, 4); ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            if (ctx.roundRect) ctx.roundRect(-w/2 + 1, -h/2, w - 2, h * 0.7, 6); else ctx.fillRect(-w/2 + 1, -h/2, w - 2, h * 0.7);
+            ctx.fillRect(-w/2 + 6, h*0.2, 4, h*0.3); 
+            ctx.fillRect(w/2 - 10, h*0.2, 4, h*0.3); 
+            ctx.restore();
+
             ctx.fillStyle = style.colors.pipe;
             ctx.fillRect(-w/2 + 6, h*0.2, 4, h*0.3); if (showLines) ctx.strokeRect(-w/2 + 6, h*0.2, 4, h*0.3);
             ctx.fillRect(w/2 - 10, h*0.2, 4, h*0.3); if (showLines) ctx.strokeRect(w/2 - 10, h*0.2, 4, h*0.3);
             
             ctx.fillStyle = style.colors.dome;
             ctx.beginPath();
-            if (ctx.roundRect) {
-                ctx.roundRect(-w/2 + 1, -h/2, w - 2, h * 0.7, 6);
-            } else {
-                ctx.rect(-w/2 + 1, -h/2, w - 2, h * 0.7);
-            }
-            ctx.fill(); 
-            if (showLines) ctx.stroke();
+            if (ctx.roundRect) ctx.roundRect(-w/2 + 1, -h/2, w - 2, h * 0.7, 6); else ctx.rect(-w/2 + 1, -h/2, w - 2, h * 0.7);
+            ctx.fill(); if (showLines) ctx.stroke();
             
             ctx.beginPath(); ctx.moveTo(-w/2 + 1, -h/4); ctx.lineTo(w/2 - 1, -h/4); 
             if (showLines) ctx.stroke();
             break;
 
         case 'factory':
+            // Silhouette Shadow
+            ctx.save(); ctx.translate(4, 4); ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(-w/2, 0, w, h/2); // Base
+            ctx.fillRect(-w/4 - 4, -h/2, 8, h/2); // Chimneys
+            ctx.fillRect(w/4 - 4, -h/2, 8, h/2);
+            ctx.restore();
+
             ctx.fillStyle = style.colors.base;
             ctx.fillRect(-w/2, 0, w, h/2);
             if (showLines) ctx.strokeRect(-w/2, 0, w, h/2);
@@ -209,24 +232,27 @@ function drawBuilding(ctx, ent, gridSize, nightMode) {
             break;
 
         case 'powerPlant':
+            // Silhouette Shadow
+            ctx.save(); ctx.translate(4, 4); ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.beginPath(); ctx.moveTo(-w/2, h/2); ctx.lineTo(w/2, h/2); ctx.lineTo(w/4, -h/2); ctx.lineTo(-w/4, -h/2); ctx.closePath(); ctx.fill();
+            ctx.restore();
+
             ctx.fillStyle = style.colors.base;
-            ctx.beginPath();
-            ctx.moveTo(-w/2, h/2);  
-            ctx.lineTo(w/2, h/2);    
-            ctx.lineTo(w/4, -h/2);   
-            ctx.lineTo(-w/4, -h/2);  
-            ctx.closePath();
-            ctx.fill(); 
+            ctx.beginPath(); ctx.moveTo(-w/2, h/2); ctx.lineTo(w/2, h/2); ctx.lineTo(w/4, -h/2); ctx.lineTo(-w/4, -h/2); ctx.closePath(); ctx.fill(); 
             if (showLines) ctx.stroke();
 
             if (ent.hasPower !== false && !ent.isAbandoned && !ent.isBurned && !ent.isRebuilding) {
-                if (Math.random() < 0.08 && typeof spawnSmokeParticle === 'function') {
-                    spawnSmokeParticle(ent.x + gridSize/2, ent.y + gridSize/2 - h/2);
-                }
+                if (Math.random() < 0.08 && typeof spawnSmokeParticle === 'function') spawnSmokeParticle(ent.x + gridSize/2, ent.y + gridSize/2 - h/2);
             }
             break;
 
         case 'school':
+            // Silhouette Shadow
+            ctx.save(); ctx.translate(4, 4); ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(-w/2, -h/4, w, h * 0.75);
+            ctx.fillRect(-w/2 - 2, -h/4 - 6, w + 4, 6);
+            ctx.restore();
+
             ctx.fillStyle = style.colors.base;
             ctx.fillRect(-w/2, -h/4, w, h * 0.75); if (showLines) ctx.strokeRect(-w/2, -h/4, w, h * 0.75);
             
@@ -234,128 +260,92 @@ function drawBuilding(ctx, ent, gridSize, nightMode) {
             ctx.fillRect(-w/2 - 2, -h/4 - 6, w + 4, 6); if (showLines) ctx.strokeRect(-w/2 - 2, -h/4 - 6, w + 4, 6);
             
             ctx.fillStyle = style.colors.flagPole;
-            ctx.fillRect(-w/2 + 4, -14, 2, 14 + h/2); 
-            if (showLines) ctx.strokeRect(-w/2 + 4, -14, 2, 14 + h/2);
+            ctx.fillRect(-w/2 + 4, -14, 2, 14 + h/2); if (showLines) ctx.strokeRect(-w/2 + 4, -14, 2, 14 + h/2);
             
             ctx.fillStyle = style.colors.flag;
             const flagWave = Math.sin(time / 200) * 3;
-            ctx.beginPath();
-            ctx.moveTo(-w/2 + 6, -13);
-            ctx.lineTo(-w/2 + 14 + flagWave, -11);
-            ctx.lineTo(-w/2 + 6, -9);
-            ctx.closePath();
-            ctx.fill(); 
+            ctx.beginPath(); ctx.moveTo(-w/2 + 6, -13); ctx.lineTo(-w/2 + 14 + flagWave, -11); ctx.lineTo(-w/2 + 6, -9); ctx.closePath(); ctx.fill(); 
             if (showLines) ctx.stroke();
             break;
 
         case 'farm':
-            // 1. Draw the Base Barn (Pitched Roof Silhouette)
+            // Silhouette Shadow
+            ctx.save(); ctx.translate(4, 4); ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.beginPath(); ctx.moveTo(-w/2, h/2); ctx.lineTo(w/2, h/2); ctx.lineTo(w/4, -h/2); ctx.lineTo(-w/4, -h/2); ctx.closePath(); ctx.fill();
+            ctx.restore();
+
             ctx.fillStyle = style.colors.base;
-            ctx.beginPath();
-            ctx.moveTo(-w/2, h/2);      
-            ctx.lineTo(w/2, h/2);       
-            ctx.lineTo(w/4, -h/2);      
-            ctx.lineTo(-w/4, -h/2);     
-            ctx.closePath();
-            ctx.fill(); 
+            ctx.beginPath(); ctx.moveTo(-w/2, h/2); ctx.lineTo(w/2, h/2); ctx.lineTo(w/4, -h/2); ctx.lineTo(-w/4, -h/2); ctx.closePath(); ctx.fill(); 
             if (showLines) ctx.stroke();
             
-            // 2. Draw the Barn Door
-            const doorW = w * 0.45;
-            const doorH = h * 0.55;
-            ctx.fillStyle = style.colors.door;
-            ctx.fillRect(-doorW/2, h/2 - doorH, doorW, doorH); 
+            const doorW = w * 0.45; const doorH = h * 0.55;
+            ctx.fillStyle = style.colors.door; ctx.fillRect(-doorW/2, h/2 - doorH, doorW, doorH); 
             if (showLines) ctx.strokeRect(-doorW/2, h/2 - doorH, doorW, doorH);
-            if (showLines) {
-                ctx.beginPath(); ctx.moveTo(0, h/2 - doorH); ctx.lineTo(0, h/2); ctx.stroke();
-            }
+            if (showLines) { ctx.beginPath(); ctx.moveTo(0, h/2 - doorH); ctx.lineTo(0, h/2); ctx.stroke(); }
 
-            // 3. Draw the Spinning Windmill Blades
-            ctx.save();
-            ctx.translate(0, -h/4 + 2); 
-            
-            // The magic math that makes it spin smoothly based on real-time!
+            ctx.save(); ctx.translate(0, -h/4 + 2); 
             let isStorming = typeof getWeatherState === 'function' && getWeatherState().toUpperCase() === 'STORM';
-            let spinSpeed = isStorming ? 750 : 1500; // 750ms in a storm, 1500ms normally
+            let spinSpeed = isStorming ? 750 : 1500; 
             let angle = (time % spinSpeed) / spinSpeed * (Math.PI * 2);
-            
             ctx.rotate(angle); 
             
-            // Draw the 4 intersecting wooden blades
             ctx.fillStyle = style.colors.blades;
             for (let i = 0; i < 4; i++) {
-                ctx.fillRect(-2, -12, 4, 10); 
-                if (showLines) ctx.strokeRect(-2, -12, 4, 10);
-                ctx.rotate(Math.PI / 2); 
+                ctx.fillRect(-2, -12, 4, 10); if (showLines) ctx.strokeRect(-2, -12, 4, 10); ctx.rotate(Math.PI / 2); 
             }
-            
-            // 4. Draw the Center Hub Pin
-            ctx.beginPath();
-            ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
-            ctx.fillStyle = style.colors.hub;
-            ctx.fill();
-            if (showLines) ctx.stroke();
+            ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fillStyle = style.colors.hub; ctx.fill(); if (showLines) ctx.stroke();
             ctx.restore();
             break;
 
         case 'hospital':
-            ctx.fillStyle = style.colors.base;
-            ctx.fillRect(-w/2, -h/2 + 6, w, h - 6); if (showLines) ctx.strokeRect(-w/2, -h/2 + 6, w, h - 6);
-            
-            ctx.fillStyle = style.colors.roof;
-            ctx.fillRect(-w/2 - 2, -h/2, w + 4, 6); if (showLines) ctx.strokeRect(-w/2 - 2, -h/2, w + 4, 6);
+            // Silhouette Shadow
+            ctx.save(); ctx.translate(4, 4); ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(-w/2, -h/2 + 6, w, h - 6);
+            ctx.fillRect(-w/2 - 2, -h/2, w + 4, 6);
+            ctx.restore();
+
+            ctx.fillStyle = style.colors.base; ctx.fillRect(-w/2, -h/2 + 6, w, h - 6); if (showLines) ctx.strokeRect(-w/2, -h/2 + 6, w, h - 6);
+            ctx.fillStyle = style.colors.roof; ctx.fillRect(-w/2 - 2, -h/2, w + 4, 6); if (showLines) ctx.strokeRect(-w/2 - 2, -h/2, w + 4, 6);
             
             ctx.fillStyle = style.colors.cross;
-            ctx.beginPath();
-            const cx = 0, cy = 4; 
-            ctx.moveTo(cx - 2, cy - 6); ctx.lineTo(cx + 2, cy - 6);
-            ctx.lineTo(cx + 2, cy - 2); ctx.lineTo(cx + 6, cy - 2);
-            ctx.lineTo(cx + 6, cy + 2); ctx.lineTo(cx + 2, cy + 2);
-            ctx.lineTo(cx + 2, cy + 6); ctx.lineTo(cx - 2, cy + 6);
-            ctx.lineTo(cx - 2, cy + 2); ctx.lineTo(cx - 6, cy + 2);
-            ctx.lineTo(cx - 6, cy - 2); ctx.lineTo(cx - 2, cy - 2);
-            ctx.closePath();
-            ctx.fill(); 
-            if (showLines) ctx.stroke();
+            ctx.beginPath(); const cx = 0, cy = 4; 
+            ctx.moveTo(cx - 2, cy - 6); ctx.lineTo(cx + 2, cy - 6); ctx.lineTo(cx + 2, cy - 2); ctx.lineTo(cx + 6, cy - 2);
+            ctx.lineTo(cx + 6, cy + 2); ctx.lineTo(cx + 2, cy + 2); ctx.lineTo(cx + 2, cy + 6); ctx.lineTo(cx - 2, cy + 6);
+            ctx.lineTo(cx - 2, cy + 2); ctx.lineTo(cx - 6, cy + 2); ctx.lineTo(cx - 6, cy - 2); ctx.lineTo(cx - 2, cy - 2);
+            ctx.closePath(); ctx.fill(); if (showLines) ctx.stroke();
             break;
 
         case 'fireStation':
-            ctx.fillStyle = style.colors.base;
-            ctx.fillRect(-w/2, -h/2 + 8, w, h - 8); 
-            if (showLines) ctx.strokeRect(-w/2, -h/2 + 8, w, h - 8);
-            
-            ctx.fillStyle = style.colors.roof;
+            // Silhouette Shadow
+            ctx.save(); ctx.translate(4, 4); ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(-w/2, -h/2 + 8, w, h - 8);
             ctx.fillRect(-w/2 - 2, -h/2, w + 4, 8);
-            if (showLines) ctx.strokeRect(-w/2 - 2, -h/2, w + 4, 8);
+            ctx.restore();
+
+            ctx.fillStyle = style.colors.base; ctx.fillRect(-w/2, -h/2 + 8, w, h - 8); if (showLines) ctx.strokeRect(-w/2, -h/2 + 8, w, h - 8);
+            ctx.fillStyle = style.colors.roof; ctx.fillRect(-w/2 - 2, -h/2, w + 4, 8); if (showLines) ctx.strokeRect(-w/2 - 2, -h/2, w + 4, 8);
             
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(0, -h/2 + 4, 3.5, 0, Math.PI * 2);
-            ctx.fill(); 
-            if (showLines) ctx.stroke();
+            ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, -h/2 + 4, 3.5, 0, Math.PI * 2); ctx.fill(); if (showLines) ctx.stroke();
             
-            ctx.fillStyle = style.colors.door;
-            ctx.fillRect(-w/2 + 2, h/2 - 10, 10, 10);
-            if (showLines) ctx.strokeRect(-w/2 + 2, h/2 - 10, 10, 10);
+            ctx.fillStyle = style.colors.door; ctx.fillRect(-w/2 + 2, h/2 - 10, 10, 10); if (showLines) ctx.strokeRect(-w/2 + 2, h/2 - 10, 10, 10);
             
-            ctx.fillStyle = style.colors.ladder;
-            const ladX = w/4 + 1;
-            const ladY = -h/2 + 10;
-            const ladW = 5;
-            const ladH = h/2;
-            
+            ctx.fillStyle = style.colors.ladder; const ladX = w/4 + 1; const ladY = -h/2 + 10; const ladW = 5; const ladH = h/2;
             ctx.fillRect(ladX, ladY, 1.5, ladH); if (showLines) ctx.strokeRect(ladX, ladY, 1.5, ladH);
             ctx.fillRect(ladX + ladW - 1.5, ladY, 1.5, ladH); if (showLines) ctx.strokeRect(ladX + ladW - 1.5, ladY, 1.5, ladH);
-            
             for(let r = ladY + 2; r < ladY + ladH - 1; r += 3) {
                 ctx.fillRect(ladX + 1.5, r, ladW - 3, 1.5);
-                if (showLines) {
-                    ctx.beginPath(); ctx.rect(ladX + 1.5, r, ladW - 3, 1.5); ctx.stroke();
-                }
+                if (showLines) { ctx.beginPath(); ctx.rect(ladX + 1.5, r, ladW - 3, 1.5); ctx.stroke(); }
             }
             break;
 
         case 'park':
+            // Silhouette Shadow (Trees and benches!)
+            ctx.save(); ctx.translate(3, 3); ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(2, -2, w*0.4, 3); // bench back
+            ctx.fillRect(0, 1, w*0.4 + 4, 4); // bench seat
+            ctx.beginPath(); ctx.arc(-w/3 - 4, 0, 5.5, 0, Math.PI * 2); ctx.fill(); // tree top
+            ctx.restore();
+
             ctx.fillStyle = style.colors.benchWood;
             ctx.fillRect(2, -2, w*0.4, 3); if (showLines) ctx.strokeRect(2, -2, w*0.4, 3);
             ctx.fillRect(0, 1, w*0.4 + 4, 4); if (showLines) ctx.strokeRect(0, 1, w*0.4 + 4, 4);
@@ -365,60 +355,36 @@ function drawBuilding(ctx, ent, gridSize, nightMode) {
             ctx.fillRect(w*0.4, 5, 2, 3); if (showLines) ctx.strokeRect(w*0.4, 5, 2, 3);
             
             const trunkW = 4, trunkH = 10;
-            ctx.fillStyle = style.colors.trunk;
-            ctx.fillRect(-w/3 - trunkW/2, 0, trunkW, trunkH); 
-            if (showLines) ctx.strokeRect(-w/3 - trunkW/2, 0, trunkW, trunkH);
+            ctx.fillStyle = style.colors.trunk; ctx.fillRect(-w/3 - trunkW/2, 0, trunkW, trunkH); if (showLines) ctx.strokeRect(-w/3 - trunkW/2, 0, trunkW, trunkH);
             
-            ctx.fillStyle = style.colors.leaf3; 
-            ctx.beginPath(); ctx.arc(-w/3 - 4, 0, 5.5, 0, Math.PI * 2); ctx.fill(); 
-            if (showLines) ctx.stroke();
-            
-            ctx.fillStyle = style.colors.leaf2; 
-            ctx.beginPath(); ctx.arc(-w/3 + 4, -1, 5, 0, Math.PI * 2); ctx.fill(); 
-            if (showLines) ctx.stroke();
-            
-            ctx.fillStyle = style.colors.leaf1; 
-            ctx.beginPath(); ctx.arc(-w/3, -4, 6, 0, Math.PI * 2); ctx.fill(); 
-            if (showLines) ctx.stroke();
+            ctx.fillStyle = style.colors.leaf3; ctx.beginPath(); ctx.arc(-w/3 - 4, 0, 5.5, 0, Math.PI * 2); ctx.fill(); if (showLines) ctx.stroke();
+            ctx.fillStyle = style.colors.leaf2; ctx.beginPath(); ctx.arc(-w/3 + 4, -1, 5, 0, Math.PI * 2); ctx.fill(); if (showLines) ctx.stroke();
+            ctx.fillStyle = style.colors.leaf1; ctx.beginPath(); ctx.arc(-w/3, -4, 6, 0, Math.PI * 2); ctx.fill(); if (showLines) ctx.stroke();
             break;
             
         case 'trainStation':
-            // Concrete Main Building
+            // Silhouette Shadow
+            ctx.save(); ctx.translate(4, 4); ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(-w/2, -h/4, w, h * 0.75); // base
+            ctx.beginPath();
+            ctx.moveTo(-w/2 - 4, -h/4); ctx.quadraticCurveTo(0, -h/2 - 8, w/2 + 4, -h/4);
+            ctx.lineTo(w/2 + 4, -h/4 + 4); ctx.quadraticCurveTo(0, -h/2 - 4, -w/2 - 4, -h/4 + 4);
+            ctx.closePath(); ctx.fill(); // roof
+            ctx.restore();
+
             ctx.fillStyle = style.colors.base;
-            ctx.fillRect(-w/2, -h/4, w, h * 0.75); 
-            if (showLines) ctx.strokeRect(-w/2, -h/4, w, h * 0.75);
+            ctx.fillRect(-w/2, -h/4, w, h * 0.75); if (showLines) ctx.strokeRect(-w/2, -h/4, w, h * 0.75);
             
-            // Massive Black Tunnel Archway (Big enough for the train)
             ctx.fillStyle = style.colors.tunnel;
-            ctx.beginPath();
-            ctx.moveTo(-12, h/2);              // Start bottom left
-            ctx.lineTo(-12, -h/4 + 6);         // Straight up
-            ctx.arc(0, -h/4 + 6, 12, Math.PI, 0); // Curve over the top
-            ctx.lineTo(12, h/2);               // Straight down to bottom right
-            ctx.closePath();
-            ctx.fill();
+            ctx.beginPath(); ctx.moveTo(-12, h/2); ctx.lineTo(-12, -h/4 + 6); ctx.arc(0, -h/4 + 6, 12, Math.PI, 0); ctx.lineTo(12, h/2); ctx.closePath(); ctx.fill();
             if (showLines) ctx.stroke();
             
-            // Sleek Curved Overhang Roof (Pastel Blue)
             ctx.fillStyle = style.colors.roof;
-            ctx.beginPath();
-            ctx.moveTo(-w/2 - 4, -h/4);
-            ctx.quadraticCurveTo(0, -h/2 - 8, w/2 + 4, -h/4);
-            ctx.lineTo(w/2 + 4, -h/4 + 4);
-            ctx.quadraticCurveTo(0, -h/2 - 4, -w/2 - 4, -h/4 + 4);
-            ctx.closePath();
-            ctx.fill(); 
+            ctx.beginPath(); ctx.moveTo(-w/2 - 4, -h/4); ctx.quadraticCurveTo(0, -h/2 - 8, w/2 + 4, -h/4); ctx.lineTo(w/2 + 4, -h/4 + 4); ctx.quadraticCurveTo(0, -h/2 - 4, -w/2 - 4, -h/4 + 4); ctx.closePath(); ctx.fill(); 
             if (showLines) ctx.stroke();
             
-            // Station Clock
-            ctx.fillStyle = '#ecf0f1';
-            ctx.beginPath(); ctx.arc(0, -h/4 + 1, 3.5, 0, Math.PI*2); ctx.fill(); 
-            if (showLines) ctx.stroke();
-            
-            // Clock hands
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(-0.5, -h/4, 1, 2.5);   // Hour hand
-            ctx.fillRect(0, -h/4 + 0.5, 2.5, 1);  // Minute hand
+            ctx.fillStyle = '#ecf0f1'; ctx.beginPath(); ctx.arc(0, -h/4 + 1, 3.5, 0, Math.PI*2); ctx.fill(); if (showLines) ctx.stroke();
+            ctx.fillStyle = '#000000'; ctx.fillRect(-0.5, -h/4 - 2, 1, 2.5); ctx.fillRect(0, -h/4 - 0.5, 2.5, 1); 
             break;
     }
 
