@@ -7,6 +7,8 @@ const ctx = canvas.getContext('2d');
 window.currentTool = 'house';
 let selectedEntity = null; 
 let currentHover = { x: null, y: null }; 
+let visualHoverX = null;
+let visualHoverY = null;
 
 // Rebuild State
 let isDraggingRebuild = false;
@@ -19,7 +21,7 @@ window.gameIsMuted = false;
 
 const gridSize = 40;
 const WORLD_SIZE = 4000; 
-const REBUILD_DURATION = 1440; // ~24 real seconds (Approx 24 in-game hours)
+const REBUILD_DURATION = 1440;
 
 const entities = []; 
 const roads = []; 
@@ -50,6 +52,22 @@ const BUILDING_COSTS = {
 const MAINTENANCE_COSTS = {
     powerPlant: 150, waterPump: 100, policeStation: 80, hospital: 120, fireStation: 90, school: 60, busStop: 10, park: 15, trainStation: 200,
     factory: 100, farm: 30
+};
+
+// --- DYNAMIC AOE SCALING ---
+// Change this ONE number to instantly grow or shrink all coverage zones!
+window.GLOBAL_AOE_SCALE = 0.5;
+
+const AOE_PROPS = {
+    park: { baseRadius: 4, color: '46, 204, 113' },         
+    powerPlant: { baseRadius: 10, color: '241, 196, 15' },   
+    waterPump: { baseRadius: 10, color: '52, 152, 219' },    
+    policeStation: { baseRadius: 8, color: '41, 128, 185' },
+    fireStation: { baseRadius: 8, color: '231, 76, 60' },   
+    hospital: { baseRadius: 8, color: '255, 182, 193' },    
+    school: { baseRadius: 6, color: '155, 89, 182' },        
+    busStop: { baseRadius: 4, color: '0, 210, 211' },      
+    trainStation: { baseRadius: 10, color: '127, 140, 141' } 
 };
 
 // --- ECONOMY FUNCTIONS ---
@@ -111,12 +129,6 @@ function isRoad(gridX, gridY) {
 // ==========================================
 function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; clampCamera(); }
 window.addEventListener('resize', resize); resize();
-
-if (typeof generateTerrain === 'function') {
-    generateTerrain(WORLD_SIZE, WORLD_SIZE, gridSize);
-    camera.x = (window.innerWidth - WORLD_SIZE) / 2; camera.y = (window.innerHeight - WORLD_SIZE) / 2;
-    clampCamera(); 
-}
 
 function clampCamera() {
     const scaledWorldW = WORLD_SIZE * camera.zoom; const scaledWorldH = WORLD_SIZE * camera.zoom;
@@ -202,11 +214,66 @@ function loadGame() {
             camera.x = (window.innerWidth - WORLD_SIZE) / 2; camera.y = (window.innerHeight - WORLD_SIZE) / 2;
             camera.zoom = 1; clampCamera(); 
             logActivity("City loaded successfully.", "info");
-        } catch (error) { console.error("Save file corrupted! Starting new game.", error); isNewGame = true; }
-    } else { isNewGame = true; }
+        } catch (error) { 
+            console.error("Save file corrupted! Starting new game.", error); 
+            isNewGame = true; 
+            showNewGameMenu(); // Trigger the menu!
+        }
+    } else { 
+        isNewGame = true; 
+        showNewGameMenu(); // Trigger the menu!
+    }
 }
 
 loadGame();
+
+// --- NEW GAME SETUP MENU ---
+function showNewGameMenu() {
+    const overlay = document.createElement('div');
+    overlay.id = 'new-game-modal';
+    Object.assign(overlay.style, {
+        position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
+        backgroundColor: 'rgba(15, 25, 40, 0.95)', zIndex: '9999',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        color: 'white', fontFamily: 'sans-serif'
+    });
+
+    overlay.innerHTML = `
+        <div style="background: #2c3e50; padding: 40px; border-radius: 12px; text-align: center; box-shadow: 0 15px 50px rgba(0,0,0,0.6); border: 2px solid #34495e; max-width: 450px;">
+            <h1 style="margin-top: 0; color: #f1c40f; font-size: 28px;">Found a New City</h1>
+            <p style="color: #bdc3c7; margin-bottom: 30px; line-height: 1.5;">Choose the size of your starting island. Larger islands provide more space to build, but require much more infrastructure to cover!</p>
+            <div style="display: flex; gap: 15px; justify-content: center;">
+                <button class="btn-size" data-mult="0.30" style="padding: 12px 24px; font-size: 16px; font-weight: bold; cursor: pointer; background: #2980b9; color: white; border: none; border-radius: 6px; transition: 0.2s;">Small</button>
+                <button class="btn-size" data-mult="0.55" style="padding: 12px 24px; font-size: 16px; font-weight: bold; cursor: pointer; background: #27ae60; color: white; border: none; border-radius: 6px; transition: 0.2s;">Medium</button>
+                <button class="btn-size" data-mult="0.80" style="padding: 12px 24px; font-size: 16px; font-weight: bold; cursor: pointer; background: #e67e22; color: white; border: none; border-radius: 6px; transition: 0.2s;">Large</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Add hover effects dynamically
+    overlay.querySelectorAll('.btn-size').forEach(btn => {
+        btn.addEventListener('mouseover', () => btn.style.filter = 'brightness(1.2)');
+        btn.addEventListener('mouseout', () => btn.style.filter = 'brightness(1)');
+        
+        btn.addEventListener('click', (e) => {
+            // 1. Save their choice to a global variable
+            window.ISLAND_SIZE_MULTIPLIER = parseFloat(e.target.dataset.mult);
+            
+            // 2. Destroy the menu
+            document.body.removeChild(overlay);
+
+            // 3. Generate the terrain NOW that we know the size!
+            if (typeof generateTerrain === 'function') {
+                generateTerrain(WORLD_SIZE, WORLD_SIZE, gridSize);
+                camera.x = (window.innerWidth - WORLD_SIZE) / 2;
+                camera.y = (window.innerHeight - WORLD_SIZE) / 2;
+                clampCamera();
+            }
+        });
+    });
+}
 
 window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -313,6 +380,9 @@ function updateInfoPanel() {
         html += `<div class="info-stat">💎 Value: ${selectedEntity.landValue ? Math.floor(selectedEntity.landValue) : 30}%</div>`;
         html += `<div class="info-stat">📈 Growth: ${selectedEntity.growth ? Math.floor(selectedEntity.growth) : 0} pts</div>`;
         yieldAmount = Math.floor((10 * (selectedEntity.level || 1) * (selectedEntity.densityMult || 1.0)) * currentTaxRate);
+    } else if (selectedEntity.type === 'tree') {
+        html += `<div class="info-stat">🌳 Nature</div>`;
+        html += `<div class="info-stat">Blocks construction. Costs <span class="bad">-$10</span> to clear.</div>`;
     } else if (['office', 'supermarket', 'school', 'factory', 'farm'].includes(selectedEntity.type)) {
         const occ = typeof getOccupancy === 'function' ? getOccupancy(selectedEntity) : 0;
         const cap = typeof ZONE_PROPS !== 'undefined' && ZONE_PROPS[selectedEntity.type] ? ZONE_PROPS[selectedEntity.type].capacity : 10;
@@ -341,7 +411,7 @@ function updateInfoPanel() {
         html += `<div class="info-stat">💸 Upkeep: <span class="bad" style="color:#e74c3c; font-weight:bold;">-$${upkeepAmount}</span></div>`;
     }
 
-    if (selectedEntity.type !== 'trainStation') {
+    if (selectedEntity.type !== 'trainStation' && selectedEntity.type !== 'tree') {
         html += `<div class="info-stat">⚡ Power: ${selectedEntity.hasPower === false ? '<span class="bad">NONE</span>' : '<span class="good">OK</span>'}</div>`;
         html += `<div class="info-stat">💧 Water: ${selectedEntity.hasWater === false ? '<span class="bad">NONE</span>' : '<span class="good">OK</span>'}</div>`;
         html += `<div class="info-stat">🛣️ Roads: ${selectedEntity.hasRoad === false ? '<span class="bad">NONE</span>' : '<span class="good">OK</span>'}</div>`;
@@ -397,18 +467,40 @@ function performDeletion(clientX, clientY) {
     const { gridX, gridY } = getGridCoords(clientX, clientY);
     let deletedSomething = false;
 
-    const entityIndex = entities.findIndex(ent => ent.x === gridX && ent.y === gridY);
-    if (entityIndex > -1) {
-        const deletedEntity = entities.splice(entityIndex, 1)[0]; deletedSomething = true;
-        if (selectedEntity === deletedEntity) { selectedEntity = null; const panel = document.getElementById('info-panel'); if (panel) panel.classList.add('hidden'); }
-        if (typeof spawnDustParticles === 'function') { const dustColor = deletedEntity.color || (typeof ZONE_PROPS !== 'undefined' && ZONE_PROPS[deletedEntity.type] ? ZONE_PROPS[deletedEntity.type].color : '#bdc3c7'); spawnDustParticles(gridX, gridY, 25, dustColor, gridSize); }
-        refund(deletedEntity.type); 
-        for (let i = cars.length - 1; i >= 0; i--) { if (cars[i].home === deletedEntity || cars[i].target === deletedEntity) cars.splice(i, 1); }
+    // --- NEW: DEEP SCRUB LOOP ---
+    // Keep deleting until absolutely every ghost entity on this tile is gone!
+    let entityIndex = entities.findIndex(ent => ent.x === gridX && ent.y === gridY);
+    while (entityIndex > -1) {
+        const deletedEntity = entities.splice(entityIndex, 1)[0]; 
+        deletedSomething = true;
+        
+        if (selectedEntity === deletedEntity) { 
+            selectedEntity = null; 
+            const panel = document.getElementById('info-panel'); 
+            if (panel) panel.classList.add('hidden'); 
+        }
+        
+        if (deletedEntity.type === 'tree') {
+            spendFunds(10); 
+            if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 15, '#27ae60', gridSize);
+        } else {
+            if (typeof spawnDustParticles === 'function') { 
+                const dustColor = deletedEntity.color || (typeof ZONE_PROPS !== 'undefined' && ZONE_PROPS[deletedEntity.type] ? ZONE_PROPS[deletedEntity.type].color : '#bdc3c7'); 
+                spawnDustParticles(gridX, gridY, 25, dustColor, gridSize); 
+            }
+            refund(deletedEntity.type); 
+        }
+        
+        for (let i = cars.length - 1; i >= 0; i--) { 
+            if (cars[i].home === deletedEntity || cars[i].target === deletedEntity) cars.splice(i, 1); 
+        }
+        
+        // Check again to see if another entity was hiding underneath!
+        entityIndex = entities.findIndex(ent => ent.x === gridX && ent.y === gridY);
     }
 
     if (!deletedSomething) {
         const lightIndex = trafficLights.findIndex(l => l.x === gridX && l.y === gridY);
-        if (lightIndex > -1) { trafficLights.splice(lightIndex, 1); deletedSomething = true; if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 10, '#f1c40f', gridSize); refund('trafficLight'); }
     }
     if (!deletedSomething) {
         const rbIndex = roundabouts.findIndex(r => r.x === gridX && r.y === gridY);
@@ -427,20 +519,13 @@ function performDeletion(clientX, clientY) {
             const nodeIndex = trainTracks[i].findIndex(node => node.x === gridX && node.y === gridY);
             if (nodeIndex > -1) { 
                 const track = trainTracks[i];
-                
-                // 1. Refund just the single track tile and spawn dust
                 refund('trainTrack');
                 if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 20, '#5c4033', gridSize); 
-                
-                // 2. Slice the track into two halves (before the click, and after the click)
                 const before = track.slice(0, nodeIndex);
                 const after = track.slice(nodeIndex + 1);
-                
-                // 3. Remove the old long track, and save the remaining pieces
                 trainTracks.splice(i, 1);
                 if (after.length > 0) trainTracks.push(after);
                 if (before.length > 0) trainTracks.push(before);
-                
                 deletedSomething = true; 
                 break; 
             }
@@ -453,34 +538,46 @@ function performDeletion(clientX, clientY) {
             if (nodeIndex > -1) { 
                 const roadPath = roads[i];
                 const deletedNode = roadPath[nodeIndex];
-                
-                // 1. Refund just the single road tile and spawn dust
                 refund(deletedNode.type || 'road');
                 if (typeof spawnDustParticles === 'function') spawnDustParticles(gridX, gridY, 20, '#505050', gridSize); 
-                
-                // 2. Slice the road into two halves
                 const before = roadPath.slice(0, nodeIndex);
                 const after = roadPath.slice(nodeIndex + 1);
-                
-                // 3. Remove the old long road, and save the remaining pieces
                 roads.splice(i, 1);
                 if (after.length > 0) roads.push(after);
                 if (before.length > 0) roads.push(before);
-                
                 deletedSomething = true; 
                 break; 
             }
         }
     }
     
+    // --- SMART AI v3: EVENT-DRIVEN RECALCULATION ---
     if (deletedSomething) {
-        for (let i = cars.length - 1; i >= 0; i--) {
-            const car = cars[i];
-            if (car.state === 'driving_work' || car.state === 'driving_home' || car.state === 'driving_shop' || car.state === 'driving_delivery') {
-                const currentDest = car.target || car.home; const newPath = typeof findPath === 'function' ? findPath(car, currentDest) : null;
-                if (newPath === null) cars.splice(i, 1); else { car.path = newPath; car.pathIndex = 0; car.progress = 0; }
+        cars.forEach(car => {
+            if (car.home && !entities.includes(car.home) && car.home.type !== 'busStop') {
+                car.home = null; 
             }
-        }
+            if (car.target && !entities.includes(car.target) && car.target.type !== 'busStop') {
+                if (car.home) {
+                    car.target = car.home;
+                    car.state = 'driving_home';
+                } else {
+                    car.target = null;
+                    car.state = 'stranded';
+                }
+            }
+            if (car.state && car.state.startsWith('driving_') && (car.target || car.home)) {
+                const dest = car.target || car.home;
+                const currentGrid = { x: Math.floor(car.realX/gridSize)*gridSize, y: Math.floor(car.realY/gridSize)*gridSize };
+                const newPath = typeof findPath === 'function' ? findPath(currentGrid, dest) : null;
+                if (newPath) {
+                    car.path = newPath; car.pathIndex = 0; car.progress = 0;
+                } else {
+                    if (car.state !== 'stranded') car._previousState = car.state; 
+                    car.state = 'stranded';
+                }
+            }
+        });
     }
 }
 
@@ -545,11 +642,9 @@ function handleInputStart(e, clientX, clientY, isRightClick) {
     if (window.currentTool === 'rebuild') { isDraggingRebuild = true; rebuildStart = { x: gridX, y: gridY }; rebuildCurrent = { x: gridX, y: gridY }; return; }
     if (window.currentTool === 'delete') { isDeleting = true; performDeletion(clientX, clientY); return; }
 
-    // Define which tools need to drag starting from inside buildings
     const isPathTool = ['road', 'bridge', 'tunnel', 'trainTrack'].includes(window.currentTool);
 
     if (!isPathTool) {
-        // Normal Click to Inspect / Click-Away to close
         if (entityIndex > -1) { 
             selectedEntity = entities[entityIndex]; 
             updateInfoPanel(); 
@@ -566,7 +661,6 @@ function handleInputStart(e, clientX, clientY, isRightClick) {
             if (panel) panel.classList.add('hidden'); 
         }
     } else {
-        // If holding a track/road tool, close the panel if clicking empty land, but DO NOT stop the code!
         if (entityIndex === -1 && stationIndex === -1) {
             selectedEntity = null; 
             if (panel) panel.classList.add('hidden'); 
@@ -579,34 +673,27 @@ function handleInputStart(e, clientX, clientY, isRightClick) {
 
     if (['road', 'bridge', 'tunnel'].includes(window.currentTool)) {
         if (terrainType === 'ocean') return; 
+        if (entityIndex > -1) return; // <-- Blocks starting a road on a tree/building
         const alreadyExists = isRoad(gridX, gridY);
         let dynamicType = 'road'; if (terrainType === 'water') dynamicType = 'bridge'; if (terrainType === 'mountain') dynamicType = 'tunnel';
         let cost = alreadyExists ? 0 : (BUILDING_COSTS[dynamicType] || 10);
         if (currentFunds >= cost) { isDrawingRoad = true; currentRoadPath = [{ x: gridX, y: gridY, type: dynamicType }]; if (cost > 0) spendFunds(cost); }
     } else if (window.currentTool === 'trainTrack') {
-        // --- NEW COASTAL TRACK RULE APPLIED HERE ---
         if (typeof canBuildTrack === 'function' && !canBuildTrack(gridX, gridY, gridSize)) {
             if (typeof logActivity === 'function') logActivity("Ocean tracks must be built next to land!", "bad");
             return; 
         }
+        if (entityIndex > -1) return; // <-- Blocks starting a track on a tree/building
         const alreadyExists = trainTracks.some(path => path.some(n => n.x === gridX && n.y === gridY));
         let cost = alreadyExists ? 0 : BUILDING_COSTS['trainTrack'];
         if (currentFunds >= cost) { isDrawingTrack = true; currentTrackPath = [{ x: gridX, y: gridY }]; if (cost > 0) spendFunds(cost); }
     } else if (window.currentTool === 'trainStation') {
-        // Allow building on flat land (null) OR on mountains ('mountain')
         if (terrainType !== null && terrainType !== 'mountain') return; 
         if (isRoad(gridX, gridY)) return; 
-        
         if (!trainStations.some(s => s.x === gridX && s.y === gridY)) {
-            if (typeof canBuildStation === 'function' && !canBuildStation(gridX, gridY, trainStations)) { 
-                alert("Train stations must be built further apart!"); 
-                return; 
-            }
+            if (typeof canBuildStation === 'function' && !canBuildStation(gridX, gridY, trainStations)) { alert("Train stations must be built further apart!"); return; }
             let cost = BUILDING_COSTS['trainStation']; 
-            if (currentFunds >= cost) { 
-                trainStations.push({ x: gridX, y: gridY }); 
-                spendFunds(cost); 
-            }
+            if (currentFunds >= cost) { trainStations.push({ x: gridX, y: gridY }); spendFunds(cost); }
         }
     } else if (window.currentTool === 'train') {
         let clickedTrackIndex = -1;
@@ -667,6 +754,7 @@ canvas.addEventListener('mousemove', (e) => {
         const lastNode = currentRoadPath[currentRoadPath.length - 1]; const dx = Math.abs(gridX - lastNode.x); const dy = Math.abs(gridY - lastNode.y);
         if ((dx === gridSize && dy === 0) || (dx === 0 && dy === gridSize)) {
             if (currentRoadPath.some(n => n.x === gridX && n.y === gridY)) return;
+            if (entities.some(ent => ent.x === gridX && ent.y === gridY)) return; // <-- Stops dragging roads through trees
             const terrainType = typeof getTerrainAt === 'function' ? getTerrainAt(gridX, gridY) : null; if (terrainType === 'ocean') return;
             const alreadyExists = isRoad(gridX, gridY);
             let dynamicType = 'road'; if (terrainType === 'water') dynamicType = 'bridge'; if (terrainType === 'mountain') dynamicType = 'tunnel';
@@ -678,7 +766,7 @@ canvas.addEventListener('mousemove', (e) => {
         const lastNode = currentTrackPath[currentTrackPath.length - 1]; const dx = Math.abs(gridX - lastNode.x); const dy = Math.abs(gridY - lastNode.y);
         if ((dx === gridSize && dy === 0) || (dx === 0 && dy === gridSize)) {
             if (currentTrackPath.some(n => n.x === gridX && n.y === gridY)) return;
-            // --- NEW COASTAL TRACK RULE APPLIED HERE ---
+            if (entities.some(ent => ent.x === gridX && ent.y === gridY)) return; // <-- Stops dragging tracks through trees
             if (typeof canBuildTrack === 'function' && !canBuildTrack(gridX, gridY, gridSize)) return;
             const alreadyExists = trainTracks.some(path => path.some(n => n.x === gridX && n.y === gridY));
             let cost = alreadyExists ? 0 : BUILDING_COSTS['trainTrack']; 
@@ -700,98 +788,112 @@ canvas.addEventListener('mouseleave', () => { currentHover.x = null; currentHove
 
 // --- PATH AUTO-MERGE LOGIC ---
 function finishDrawingPaths() {
-    // 1. ROAD MERGING
     if (isDrawingRoad) { 
         isDrawingRoad = false; 
         
-        if (currentRoadPath.length > 1) {
-            let merged = false;
-            const firstNew = currentRoadPath[0];
-            const lastNew = currentRoadPath[currentRoadPath.length - 1];
-
-            // Auto-merge with existing roads so dashed lines connect seamlessly!
-            for (let i = 0; i < roads.length; i++) {
-                const road = roads[i];
-                if (road.length === 0) continue;
-                
-                const firstOld = road[0];
-                const lastOld = road[road.length - 1];
-
-                // A. New road continues from the END of an old road
-                if (firstNew.x === lastOld.x && firstNew.y === lastOld.y) {
-                    road.push(...currentRoadPath.slice(1));
-                    merged = true; break;
-                }
-                // B. New road continues from the START of an old road
-                else if (firstNew.x === firstOld.x && firstNew.y === firstOld.y) {
-                    const reversedNew = currentRoadPath.slice(1).reverse();
-                    roads[i] = reversedNew.concat(road);
-                    merged = true; break;
-                }
-                // C. New road drawn BACKWARDS into the END of an old road
-                else if (lastNew.x === lastOld.x && lastNew.y === lastOld.y) {
-                    const reversedNew = currentRoadPath.slice(0, -1).reverse();
-                    road.push(...reversedNew);
-                    merged = true; break;
-                }
-                // D. New road drawn BACKWARDS into the START of an old road
-                else if (lastNew.x === firstOld.x && lastNew.y === firstOld.y) {
-                    const newPrefix = currentRoadPath.slice(0, -1);
-                    roads[i] = newPrefix.concat(road);
-                    merged = true; break;
-                }
-            }
+        // FIX: Changed from > 1 to > 0 so single-clicks actually build roads!
+        if (currentRoadPath.length > 0) {
             
-            // If it didn't touch an existing road, it forms a brand new line
-            if (!merged) {
-                roads.push([...currentRoadPath]);
+            // Handle 1x1 hole patching
+            if (currentRoadPath.length === 1) {
+                const node = currentRoadPath[0];
+                if (!isRoad(node.x, node.y)) {
+                    roads.push([...currentRoadPath]);
+                }
+            } else {
+                // Standard Auto-Merge Logic for dragged roads
+                let merged = false;
+                const firstNew = currentRoadPath[0];
+                const lastNew = currentRoadPath[currentRoadPath.length - 1];
+
+                for (let i = 0; i < roads.length; i++) {
+                    const road = roads[i];
+                    if (road.length === 0) continue;
+                    
+                    const firstOld = road[0];
+                    const lastOld = road[road.length - 1];
+
+                    if (firstNew.x === lastOld.x && firstNew.y === lastOld.y) {
+                        road.push(...currentRoadPath.slice(1));
+                        merged = true; break;
+                    } else if (firstNew.x === firstOld.x && firstNew.y === firstOld.y) {
+                        const reversedNew = currentRoadPath.slice(1).reverse();
+                        roads[i] = reversedNew.concat(road);
+                        merged = true; break;
+                    } else if (lastNew.x === lastOld.x && lastNew.y === lastOld.y) {
+                        const reversedNew = currentRoadPath.slice(0, -1).reverse();
+                        road.push(...reversedNew);
+                        merged = true; break;
+                    } else if (lastNew.x === firstOld.x && lastNew.y === firstOld.y) {
+                        const newPrefix = currentRoadPath.slice(0, -1);
+                        roads[i] = newPrefix.concat(road);
+                        merged = true; break;
+                    }
+                }
+                
+                if (!merged) { roads.push([...currentRoadPath]); }
             }
+
+            // --- SMART AI v3: WAKE UP CALL ---
+            cars.forEach(car => {
+                if (car.state === 'stranded' && (car.target || car.home)) {
+                    const dest = car.target || car.home;
+                    const currentGrid = { x: Math.floor(car.realX/gridSize)*gridSize, y: Math.floor(car.realY/gridSize)*gridSize };
+                    const restoredPath = typeof findPath === 'function' ? findPath(currentGrid, dest) : null;
+                    if (restoredPath) {
+                        car.path = restoredPath; car.pathIndex = 0; car.progress = 0;
+                        car.state = car._previousState || 'driving_home'; 
+                    }
+                }
+            });
         }
         currentRoadPath = []; 
     }
     
-    // 2. TRAIN TRACK MERGING
     if (isDrawingTrack) { 
         isDrawingTrack = false; 
         
-        if (currentTrackPath.length > 1) {
-            let merged = false;
-            const firstNew = currentTrackPath[0];
-            const lastNew = currentTrackPath[currentTrackPath.length - 1];
+        // FIX: Also applied the 1x1 patch logic to Train Tracks
+        if (currentTrackPath.length > 0) {
+            if (currentTrackPath.length === 1) {
+                const node = currentTrackPath[0];
+                const alreadyExists = trainTracks.some(path => path.some(n => n.x === node.x && n.y === node.y));
+                if (!alreadyExists) {
+                    trainTracks.push([...currentTrackPath]);
+                }
+            } else {
+                let merged = false;
+                const firstNew = currentTrackPath[0];
+                const lastNew = currentTrackPath[currentTrackPath.length - 1];
 
-            // Auto-merge with existing tracks so trains can drive seamlessly
-            for (let i = 0; i < trainTracks.length; i++) {
-                const track = trainTracks[i];
-                if (track.length === 0) continue;
+                for (let i = 0; i < trainTracks.length; i++) {
+                    const track = trainTracks[i];
+                    if (track.length === 0) continue;
+                    
+                    const firstOld = track[0];
+                    const lastOld = track[track.length - 1];
+
+                    if (firstNew.x === lastOld.x && firstNew.y === lastOld.y) {
+                        track.push(...currentTrackPath.slice(1));
+                        merged = true; break;
+                    } else if (firstNew.x === firstOld.x && firstNew.y === firstOld.y) {
+                        const reversedNew = currentTrackPath.slice(1).reverse();
+                        trainTracks[i] = reversedNew.concat(track);
+                        if (typeof activeTrains !== 'undefined') activeTrains.forEach(t => { if (t.lineIndex === i) t.pathIndex += reversedNew.length; });
+                        merged = true; break;
+                    } else if (lastNew.x === lastOld.x && lastNew.y === lastOld.y) {
+                        const reversedNew = currentTrackPath.slice(0, -1).reverse();
+                        track.push(...reversedNew);
+                        merged = true; break;
+                    } else if (lastNew.x === firstOld.x && lastNew.y === firstOld.y) {
+                        const newPrefix = currentTrackPath.slice(0, -1);
+                        trainTracks[i] = newPrefix.concat(track);
+                        if (typeof activeTrains !== 'undefined') activeTrains.forEach(t => { if (t.lineIndex === i) t.pathIndex += newPrefix.length; });
+                        merged = true; break;
+                    }
+                }
                 
-                const firstOld = track[0];
-                const lastOld = track[track.length - 1];
-
-                if (firstNew.x === lastOld.x && firstNew.y === lastOld.y) {
-                    track.push(...currentTrackPath.slice(1));
-                    merged = true; break;
-                }
-                else if (firstNew.x === firstOld.x && firstNew.y === firstOld.y) {
-                    const reversedNew = currentTrackPath.slice(1).reverse();
-                    trainTracks[i] = reversedNew.concat(track);
-                    if (typeof activeTrains !== 'undefined') activeTrains.forEach(t => { if (t.lineIndex === i) t.pathIndex += reversedNew.length; });
-                    merged = true; break;
-                }
-                else if (lastNew.x === lastOld.x && lastNew.y === lastOld.y) {
-                    const reversedNew = currentTrackPath.slice(0, -1).reverse();
-                    track.push(...reversedNew);
-                    merged = true; break;
-                }
-                else if (lastNew.x === firstOld.x && lastNew.y === firstOld.y) {
-                    const newPrefix = currentTrackPath.slice(0, -1);
-                    trainTracks[i] = newPrefix.concat(track);
-                    if (typeof activeTrains !== 'undefined') activeTrains.forEach(t => { if (t.lineIndex === i) t.pathIndex += newPrefix.length; });
-                    merged = true; break;
-                }
-            }
-            
-            if (!merged) {
-                trainTracks.push([...currentTrackPath]);
+                if (!merged) { trainTracks.push([...currentTrackPath]); }
             }
         }
         currentTrackPath = []; 
@@ -824,7 +926,6 @@ canvas.addEventListener('wheel', (e) => {
 // 5. RENDER HELPERS
 // ==========================================
 function drawMinimap(ctx) {
-    // Hide the minimap on mobile screens to keep the UI clean
     if (window.innerWidth < 768) return;
 
     const minimapSize = 200; 
@@ -843,6 +944,7 @@ function drawMinimap(ctx) {
 
     entities.forEach(ent => {
         let color = '#FF6B6B'; 
+        if (ent.type === 'tree') color = '#27ae60';
         if (ent.type === 'office') color = '#3498db'; if (ent.type === 'supermarket') color = '#f1c40f'; if (ent.type === 'school') color = '#9b59b6';
         if (ent.type === 'factory') color = '#8e44ad'; if (ent.type === 'farm') color = '#d35400';
         if (ent.type === 'policeStation') color = '#2c3e50'; if (ent.type === 'hospital') color = '#e74c3c'; if (ent.type === 'fireStation') color = '#d35400';
@@ -854,10 +956,7 @@ function drawMinimap(ctx) {
     roundabouts.forEach(rb => { ctx.fillStyle = '#16a085'; ctx.fillRect(rb.x * scale, rb.y * scale, Math.max(2, gridSize * scale), Math.max(2, gridSize * scale)); });
     trainStations.forEach(s => { ctx.fillStyle = '#2980b9'; ctx.fillRect(s.x * scale, s.y * scale, Math.max(4, gridSize * scale), Math.max(4, gridSize * scale)); });
     
-    // Only draw cars on the minimap if the array exists
-    if (typeof cars !== 'undefined') {
-        cars.forEach(car => { ctx.fillStyle = car.color; ctx.fillRect(car.realX * scale, car.realY * scale, 2, 2); });
-    }
+    if (typeof cars !== 'undefined') { cars.forEach(car => { ctx.fillStyle = car.color; ctx.fillRect(car.realX * scale, car.realY * scale, 2, 2); }); }
 
     const viewX = (-camera.x / camera.zoom) * scale; const viewY = (-camera.y / camera.zoom) * scale; const viewW = (canvas.width / camera.zoom) * scale; const viewH = (canvas.height / camera.zoom) * scale;
     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
@@ -903,6 +1002,24 @@ function drawAbandonedDetails(ctx, ent, gridSize) {
     ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 1.5; ctx.beginPath();
     ctx.moveTo(-gridSize/3, gridSize/3); ctx.quadraticCurveTo(-gridSize/4, 0, -gridSize/3, -gridSize/4);
     ctx.moveTo(gridSize/4, gridSize/3); ctx.quadraticCurveTo(gridSize/3, 0, gridSize/5, -gridSize/5); ctx.stroke();
+    ctx.restore();
+}
+
+function drawSmoothHover(ctx, gridSize) {
+    if (!window.currentTool || currentHover.x === null || currentHover.y === null) { visualHoverX = null; visualHoverY = null; return; }
+    if (visualHoverX === null) visualHoverX = currentHover.x; if (visualHoverY === null) visualHoverY = currentHover.y;
+    visualHoverX += (currentHover.x - visualHoverX) * 0.35; visualHoverY += (currentHover.y - visualHoverY) * 0.35;
+
+    ctx.save();
+    if (window.currentTool === 'delete') {
+        ctx.fillStyle = 'rgba(231, 76, 60, 0.35)'; ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 2;
+        ctx.fillRect(visualHoverX, visualHoverY, gridSize, gridSize); ctx.strokeRect(visualHoverX, visualHoverY, gridSize, gridSize);
+        ctx.beginPath(); ctx.moveTo(visualHoverX + gridSize * 0.25, visualHoverY + gridSize * 0.25); ctx.lineTo(visualHoverX + gridSize * 0.75, visualHoverY + gridSize * 0.75);
+        ctx.moveTo(visualHoverX + gridSize * 0.75, visualHoverY + gridSize * 0.25); ctx.lineTo(visualHoverX + gridSize * 0.25, visualHoverY + gridSize * 0.75); ctx.stroke();
+    } else {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.15)'; ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; ctx.lineWidth = 1;
+        ctx.fillRect(visualHoverX, visualHoverY, gridSize, gridSize); ctx.strokeRect(visualHoverX, visualHoverY, gridSize, gridSize);
+    }
     ctx.restore();
 }
 
@@ -952,8 +1069,44 @@ function gameLoop() {
 
     entities.forEach(ent => {
         
-        // --- DRIVEWAY CONNECTOR LOGIC (Excluded for Parks) ---
-        if (ent.type !== 'park') {
+        // --- TREE RENDERING ---
+        if (ent.type === 'tree') {
+            const cx = ent.x + gridSize / 2; 
+            const cy = ent.y + gridSize / 2;
+            ctx.save(); 
+            ctx.translate(cx, cy);
+            
+            // FIX: Divide by gridSize first to get true grid coordinates!
+            const gridX = Math.floor(ent.x / gridSize);
+            const gridY = Math.floor(ent.y / gridSize);
+            
+            // Now this will actually split them 50/50 deterministically
+            const isPine = ((gridX * 7) + (gridY * 13)) % 2 === 0;
+
+            if (isPine) {
+                // Pine Tree (Layered Triangles)
+                ctx.fillStyle = '#8B4513'; 
+                ctx.fillRect(-2, 0, 4, 12); 
+                
+                ctx.fillStyle = '#145a32'; ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(9, 4); ctx.lineTo(-9, 4); ctx.fill();
+                ctx.fillStyle = '#1e8449'; ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(7.5, 0); ctx.lineTo(-7.5, 0); ctx.fill();
+                ctx.fillStyle = '#27ae60'; ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(6, -4); ctx.lineTo(-6, -4); ctx.fill();
+            } else {
+                // Exact Park Tree Copy (Rounded Leaves, Centered, No Outlines)
+                ctx.fillStyle = '#8B4513'; 
+                ctx.fillRect(-2, 0, 4, 10); 
+                
+                ctx.fillStyle = '#1e8449'; ctx.beginPath(); ctx.arc(-4, 0, 5.5, 0, Math.PI * 2); ctx.fill(); 
+                ctx.fillStyle = '#27ae60'; ctx.beginPath(); ctx.arc(4, -1, 5, 0, Math.PI * 2); ctx.fill(); 
+                ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.arc(0, -4, 6, 0, Math.PI * 2); ctx.fill(); 
+            }
+            
+            ctx.restore();
+            return; // Skips the rest of the building/driveway logic!
+        }
+
+        // --- DRIVEWAY CONNECTOR LOGIC (Excluded for Parks and Trees) ---
+        if (ent.type !== 'park' && ent.type !== 'tree') {
             if (ent.driveway && (!isRoad(ent.driveway.x, ent.driveway.y))) { ent.driveway = null; ent.hasRoad = false; }
             if (!ent.driveway) {
                 const dirs = [{dx:0, dy:-gridSize}, {dx:gridSize, dy:0}, {dx:0, dy:gridSize}, {dx:-gridSize, dy:0}];
@@ -967,55 +1120,26 @@ function gameLoop() {
                 let direction = ''; 
                 const floorOffset = gridSize - 8; 
 
-                if (ent.driveway.y < ent.y) { 
-                    endY = ent.y; direction = 'N'; 
-                } else if (ent.driveway.y > ent.y) { 
-                    endY = ent.y + gridSize; direction = 'S'; 
-                } else if (ent.driveway.x < ent.x) { 
-                    endX = ent.x; direction = 'W'; 
-                    startY = ent.y + floorOffset; endY = ent.driveway.y + floorOffset; 
-                } else if (ent.driveway.x > ent.x) { 
-                    endX = ent.x + gridSize; direction = 'E'; 
-                    startY = ent.y + floorOffset; endY = ent.driveway.y + floorOffset; 
-                }
+                if (ent.driveway.y < ent.y) { endY = ent.y; direction = 'N'; } 
+                else if (ent.driveway.y > ent.y) { endY = ent.y + gridSize; direction = 'S'; } 
+                else if (ent.driveway.x < ent.x) { endX = ent.x; direction = 'W'; startY = ent.y + floorOffset; endY = ent.driveway.y + floorOffset; } 
+                else if (ent.driveway.x > ent.x) { endX = ent.x + gridSize; direction = 'E'; startY = ent.y + floorOffset; endY = ent.driveway.y + floorOffset; }
 
                 ctx.save();
                 ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(endX, endY);
                 
-                if (ent.type === 'house') {
-                    ctx.strokeStyle = '#34495e'; ctx.lineWidth = 10; ctx.stroke(); 
-                    ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 6; ctx.stroke();  
-                } else if (ent.type === 'farm') {
-                    ctx.strokeStyle = 'rgba(62, 39, 35, 0.9)'; ctx.lineWidth = 6; ctx.setLineDash([4, 4]); ctx.stroke();
-                } else if (ent.type === 'factory' || ent.type === 'powerPlant') {
-                    ctx.strokeStyle = '#000000'; ctx.lineWidth = 10; ctx.stroke();
-                    ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.stroke();
-                } else if (ent.type === 'policeStation' || ent.type === 'fireStation') {
-                    ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 12; ctx.stroke();
-                    ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 2; ctx.stroke(); 
-                } else {
-                    ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 14; ctx.stroke(); 
-                    ctx.strokeStyle = '#bdc3c7'; ctx.lineWidth = 10; ctx.stroke(); 
-                }
+                if (ent.type === 'house') { ctx.strokeStyle = '#34495e'; ctx.lineWidth = 10; ctx.stroke(); ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 6; ctx.stroke();  } 
+                else if (ent.type === 'farm') { ctx.strokeStyle = 'rgba(62, 39, 35, 0.9)'; ctx.lineWidth = 6; ctx.setLineDash([4, 4]); ctx.stroke(); } 
+                else if (ent.type === 'factory' || ent.type === 'powerPlant') { ctx.strokeStyle = '#000000'; ctx.lineWidth = 10; ctx.stroke(); ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.stroke(); } 
+                else if (ent.type === 'policeStation' || ent.type === 'fireStation') { ctx.strokeStyle = '#1a252f'; ctx.lineWidth = 12; ctx.stroke(); ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 2; ctx.stroke(); } 
+                else { ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 14; ctx.stroke(); ctx.strokeStyle = '#bdc3c7'; ctx.lineWidth = 10; ctx.stroke(); }
                 ctx.restore();
 
                 if (direction === 'E' || direction === 'W') {
                     ctx.save();
-                    const minX = Math.min(startX, endX);
-                    const maxX = Math.max(startX, endX);
-                    
-                    if (ent.type === 'house') {
-                        ctx.strokeStyle = '#2c3e50'; 
-                        ctx.lineWidth = 2;
-                        for (let px = minX + 4; px < maxX; px += 4) {
-                            ctx.beginPath(); ctx.moveTo(px, startY - 4); ctx.lineTo(px, startY + 4); ctx.stroke();
-                        }
-                    } else if (ent.type !== 'farm') {
-                        ctx.strokeStyle = '#2c3e50'; 
-                        ctx.lineWidth = 2;
-                        ctx.beginPath(); ctx.moveTo(startX, startY - 6); ctx.lineTo(endX, startY - 6); ctx.stroke();
-                        ctx.beginPath(); ctx.moveTo(startX, startY + 6); ctx.lineTo(endX, startY + 6); ctx.stroke();
-                    }
+                    const minX = Math.min(startX, endX); const maxX = Math.max(startX, endX);
+                    if (ent.type === 'house') { ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 2; for (let px = minX + 4; px < maxX; px += 4) { ctx.beginPath(); ctx.moveTo(px, startY - 4); ctx.lineTo(px, startY + 4); ctx.stroke(); } } 
+                    else if (ent.type !== 'farm') { ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(startX, startY - 6); ctx.lineTo(endX, startY - 6); ctx.stroke(); ctx.beginPath(); ctx.moveTo(startX, startY + 6); ctx.lineTo(endX, startY + 6); ctx.stroke(); }
                     ctx.restore();
                 }
             }
@@ -1023,7 +1147,6 @@ function gameLoop() {
 
         const hasBlueprint = typeof BLUEPRINTS !== 'undefined' && BLUEPRINTS[ent.type];
 
-        // --- CONSTRUCTION TENT LOGIC ---
         if (ent.isRebuilding) {
             ent.rebuildProgress += (1 / REBUILD_DURATION);
             
@@ -1035,18 +1158,9 @@ function gameLoop() {
                 const tX = ent.x; const tY = ent.y;
                 ctx.fillStyle = '#3498db'; ctx.fillRect(tX + 2, tY + gridSize * 0.4, gridSize - 4, gridSize * 0.6 - 2);
                 ctx.fillStyle = '#2980b9'; ctx.beginPath(); ctx.moveTo(tX + 2, tY + gridSize * 0.4); ctx.lineTo(tX + gridSize / 2, tY + 4); ctx.lineTo(tX + gridSize - 2, tY + gridSize * 0.4); ctx.closePath(); ctx.fill();
-
-                if (window.showBuildingOutlines) {
-                    ctx.strokeStyle = '#154360'; ctx.lineWidth = 1;
-                    ctx.strokeRect(tX + 2, tY + gridSize * 0.4, gridSize - 4, gridSize * 0.6 - 2);
-                    ctx.beginPath(); ctx.moveTo(tX + 2, tY + gridSize * 0.4); ctx.lineTo(tX + gridSize / 2, tY + 4); ctx.lineTo(tX + gridSize - 2, tY + gridSize * 0.4); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(tX + gridSize / 2, tY + 4); ctx.lineTo(tX + gridSize / 2, tY + gridSize - 2); ctx.stroke();
-                }
-
+                if (window.showBuildingOutlines) { ctx.strokeStyle = '#154360'; ctx.lineWidth = 1; ctx.strokeRect(tX + 2, tY + gridSize * 0.4, gridSize - 4, gridSize * 0.6 - 2); ctx.beginPath(); ctx.moveTo(tX + 2, tY + gridSize * 0.4); ctx.lineTo(tX + gridSize / 2, tY + 4); ctx.lineTo(tX + gridSize - 2, tY + gridSize * 0.4); ctx.stroke(); ctx.beginPath(); ctx.moveTo(tX + gridSize / 2, tY + 4); ctx.lineTo(tX + gridSize / 2, tY + gridSize - 2); ctx.stroke(); }
                 ctx.fillStyle = '#154360'; ctx.beginPath(); ctx.moveTo(tX + gridSize / 2, tY + gridSize - 2); ctx.lineTo(tX + gridSize / 2 - 4, tY + gridSize * 0.6); ctx.lineTo(tX + gridSize / 2 + 4, tY + gridSize * 0.6); ctx.closePath(); ctx.fill();
-
                 if (Math.random() < 0.15 && typeof spawnDustParticles === 'function') spawnDustParticles(ent.x, ent.y + gridSize - 4, 2, '#bdc3c7', gridSize);
-                
                 ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(ent.x + 5, ent.y - 10, gridSize - 10, 6);
                 ctx.fillStyle = '#f1c40f'; ctx.fillRect(ent.x + 6, ent.y - 9, (gridSize - 12) * ent.rebuildProgress, 4);
             }
@@ -1059,10 +1173,8 @@ function gameLoop() {
             if (ent.isAbandoned) { ctx.restore(); drawAbandonedDetails(ctx, ent, gridSize); }
         }
 
-        // --- STATE MONITOR: LOG DEATHS & ABANDONMENT ---
         let currentState = 'operational';
         if (ent.isBurned) currentState = 'burned'; else if (ent.isAbandoned) currentState = 'abandoned'; else if (ent.isRebuilding) currentState = 'rebuilding';
-
         if (ent._previousState === undefined) { ent._previousState = currentState; } 
         else if (ent._previousState !== currentState) {
             if (ent.type === 'house' && ent._previousState === 'operational') {
@@ -1073,7 +1185,6 @@ function gameLoop() {
             ent._previousState = currentState;
         }
 
-        // --- ALERTS & OVERLAYS ---
         if (ent.isCrimeScene) {
             ctx.save(); ctx.translate(ent.x, ent.y);
             ctx.lineWidth = 4; ctx.strokeStyle = '#f1c40f'; 
@@ -1087,14 +1198,7 @@ function gameLoop() {
             if (ent.densityMult > 1.0 && !ent.isAbandoned && !ent.isBurned && !ent.isRebuilding) { 
                 const cx = ent.x + gridSize / 2; const cy = ent.y + gridSize / 2;
                 ctx.save(); ctx.translate(cx, cy);
-
-                const drawParkStyleBush = (bx, by) => {
-                    ctx.lineWidth = 1; ctx.strokeStyle = '#111111';
-                    ctx.fillStyle = '#1e8449'; ctx.beginPath(); ctx.arc(bx - 2.5, by + 1, 3.5, 0, Math.PI * 2); ctx.fill(); if (window.showBuildingOutlines) ctx.stroke();
-                    ctx.fillStyle = '#27ae60'; ctx.beginPath(); ctx.arc(bx + 2.5, by + 1, 3, 0, Math.PI * 2); ctx.fill(); if (window.showBuildingOutlines) ctx.stroke();
-                    ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.arc(bx, by - 2, 3.5, 0, Math.PI * 2); ctx.fill(); if (window.showBuildingOutlines) ctx.stroke();
-                };
-
+                const drawParkStyleBush = (bx, by) => { ctx.lineWidth = 1; ctx.strokeStyle = '#111111'; ctx.fillStyle = '#1e8449'; ctx.beginPath(); ctx.arc(bx - 2.5, by + 1, 3.5, 0, Math.PI * 2); ctx.fill(); if (window.showBuildingOutlines) ctx.stroke(); ctx.fillStyle = '#27ae60'; ctx.beginPath(); ctx.arc(bx + 2.5, by + 1, 3, 0, Math.PI * 2); ctx.fill(); if (window.showBuildingOutlines) ctx.stroke(); ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.arc(bx, by - 2, 3.5, 0, Math.PI * 2); ctx.fill(); if (window.showBuildingOutlines) ctx.stroke(); };
                 drawParkStyleBush(-11, 14); drawParkStyleBush(11, 14);
                 ctx.restore();
             }
@@ -1115,7 +1219,6 @@ function gameLoop() {
     if (typeof manageTrains === 'function') manageTrains(trainTracks, trainStations);
     if (typeof updateAndDrawTrains === 'function') updateAndDrawTrains(ctx, trainTracks, gridSize, nightMode);
 
-    // Delegate train station drawing to train.js
     if (typeof renderTrainStations === 'function') {
         renderTrainStations(ctx, trainStations, gridSize, nightMode, isRoad);
     }
@@ -1125,7 +1228,6 @@ function gameLoop() {
     if (typeof drawNightOverlay === 'function') drawNightOverlay(ctx, WORLD_SIZE, WORLD_SIZE);
     if (typeof updateAndDrawTornadoes === 'function') updateAndDrawTornadoes(ctx, entities, cars, gridSize);
 
-    // Rebuild Drag Box
     if (isDraggingRebuild && window.currentTool === 'rebuild') {
         ctx.save();
         const minX = Math.min(rebuildStart.x, rebuildCurrent.x); const maxX = Math.max(rebuildStart.x, rebuildCurrent.x) + gridSize;
@@ -1136,14 +1238,24 @@ function gameLoop() {
         ctx.restore();
     }
 
-    // Demolish Hover
-    if (window.currentTool === 'delete' && currentHover.x !== null) {
-        ctx.save(); ctx.beginPath(); ctx.arc(currentHover.x + gridSize / 2, currentHover.y + gridSize / 2, gridSize / 2, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(231, 76, 60, 0.4)'; ctx.fill();
-        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 / camera.zoom; ctx.setLineDash([4, 4]); ctx.lineDashOffset = -Date.now() / 30; ctx.stroke(); ctx.restore();
-    }
+    drawSmoothHover(ctx, gridSize);
 
     if (selectedEntity) {
+        // --- DRAW AREA OF EFFECT (AoE) OVERLAY ---
+        const aoe = typeof AOE_PROPS !== 'undefined' ? AOE_PROPS[selectedEntity.type] : null;
+        if (aoe) {
+            ctx.save();
+            const cx = selectedEntity.x + gridSize / 2;
+            const cy = selectedEntity.y + gridSize / 2;
+            const actualRadius = aoe.baseRadius * gridSize * (window.GLOBAL_AOE_SCALE || 1.0);
+            const pulse = Math.sin(Date.now() / 400) * 0.05 + 0.15; 
+            
+            ctx.fillStyle = `rgba(${aoe.color}, ${pulse})`;
+            ctx.beginPath(); ctx.arc(cx, cy, actualRadius, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = `rgba(${aoe.color}, 0.8)`; ctx.lineWidth = 2 / camera.zoom; ctx.stroke();
+            ctx.restore();
+        }
+
         ctx.save(); ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 3 / camera.zoom; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -Date.now() / 30; ctx.strokeRect(selectedEntity.x, selectedEntity.y, gridSize, gridSize); ctx.restore();
         if (taxTimer % 30 === 0) updateInfoPanel(); 
     }
@@ -1172,6 +1284,43 @@ function gameLoop() {
             else window.cityFunds = (window.cityFunds || 20000) + economyResult.netIncome;
             if (typeof processTaxes === 'function') processTaxes(economyResult.population); 
         }
+        
+        // --- DYNAMIC FOREST GROWTH ---
+        if (Math.random() < 0.40) { 
+            const trees = entities.filter(e => e.type === 'tree');
+            if (trees.length > 0) {
+                // Normal Growth: Pick a random tree to drop a seed nearby
+                const parent = trees[Math.floor(Math.random() * trees.length)];
+                const dirs = [ {dx: gridSize, dy: 0}, {dx: -gridSize, dy: 0}, {dx: 0, dy: gridSize}, {dx: 0, dy: -gridSize} ];
+                const dir = dirs[Math.floor(Math.random() * dirs.length)];
+                const nx = parent.x + dir.dx; const ny = parent.y + dir.dy;
+                
+                if (typeof getTerrainAt === 'function' && getTerrainAt(nx, ny) === null) {
+                    if (!isRoad(nx, ny) && !entities.some(e => e.x === nx && e.y === ny)) {
+                        entities.push({ type: 'tree', x: nx, y: ny });
+                    }
+                }
+            } else {
+                // LEGACY SAVE FIX: A bird drops the very first seed!
+                // If there are 0 trees, hunt for a random patch of grass
+                const cols = Math.floor(WORLD_SIZE / gridSize);
+                const rows = Math.floor(WORLD_SIZE / gridSize);
+                
+                // Try 50 random spots to find valid land
+                for (let attempts = 0; attempts < 50; attempts++) {
+                    const rx = Math.floor(Math.random() * cols) * gridSize;
+                    const ry = Math.floor(Math.random() * rows) * gridSize;
+                    
+                    if (typeof getTerrainAt === 'function' && getTerrainAt(rx, ry) === null) {
+                        if (!isRoad(rx, ry) && !entities.some(e => e.x === rx && e.y === ry)) {
+                            entities.push({ type: 'tree', x: rx, y: ry });
+                            break; // Seed planted, stop looking!
+                        }
+                    }
+                }
+            }
+        }
+
         taxTimer = 0;
     }
 
@@ -1180,7 +1329,7 @@ function gameLoop() {
     });
 
     drawMinimap(ctx);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.font = '12px sans-serif'; ctx.fillText('© Meglen 2026', canvas.width - 100, canvas.height - 5);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; ctx.font = '8px sans-serif'; ctx.fillText('© Meglen 2026', canvas.width -75, canvas.height - 5);
     requestAnimationFrame(gameLoop);
 }
 
@@ -1248,6 +1397,5 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Auto-save the city to LocalStorage every 5 seconds
 setInterval(saveGame, 5000);
 requestAnimationFrame(gameLoop);

@@ -12,7 +12,7 @@ const tornadoes = [];
 
 
 let earthquakeTimer = 0; 
-let earthquakeMagnitude = 0;
+let earthquakeMagnitude = 2;
 const EARTHQUAKE_CHANCE = 0.000001; 
 
 

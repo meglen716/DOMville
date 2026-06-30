@@ -3,13 +3,14 @@
 // ==========================================
 window.addEventListener('DOMContentLoaded', () => {
     
-    // --- SETTINGS MODAL ---
+    // --- SETTINGS PANEL (Floating) ---
     const settingsBtn = document.getElementById('settings-btn');
-    const settingsModal = document.getElementById('settings-modal');
+    const settingsPanel = document.getElementById('settings-panel');
     const closeSettings = document.getElementById('close-settings-btn');
 
-    if (settingsBtn) settingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
-    if (closeSettings) closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
+    // Toggles the 'active' class to trigger the CSS slide-up animation
+    if (settingsBtn) settingsBtn.addEventListener('click', () => settingsPanel.classList.toggle('active'));
+    if (closeSettings) closeSettings.addEventListener('click', () => settingsPanel.classList.remove('active'));
 
     // --- TOGGLES ---
     const outlineToggle = document.getElementById('outline-toggle');

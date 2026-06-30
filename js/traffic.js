@@ -130,11 +130,22 @@ function manageTraffic() {
         if (house.fireLevel > 0) return; 
         const houseCars = cars.filter(car => car.home === house);
         
-        // --- BUFFED TRANSIT REACH (12 Grids!) ---
+        // --- DYNAMIC TRANSIT REACH ---
         let coveredByTransit = false;
-        for (const stop of busStops) { const dist = Math.sqrt(Math.pow(stop.x - house.x, 2) + Math.pow(stop.y - house.y, 2)); if (dist <= gridSize * 3.5) { coveredByTransit = true; break; } }
+        
+        // Grab the dynamic radius sizes from game.js
+        const busScale = typeof AOE_PROPS !== 'undefined' ? (AOE_PROPS['busStop'].baseRadius * (window.GLOBAL_AOE_SCALE || 1.0)) : 3.5;
+        for (const stop of busStops) { 
+            const dist = Math.sqrt(Math.pow(stop.x - house.x, 2) + Math.pow(stop.y - house.y, 2)); 
+            if (dist <= gridSize * busScale) { coveredByTransit = true; break; } 
+        }
+        
         if (!coveredByTransit && typeof activeTrains !== 'undefined' && activeTrains.length > 0) {
-            for (const station of trainStations) { const dist = Math.sqrt(Math.pow(station.x - house.x, 2) + Math.pow(station.y - house.y, 2)); if (dist <= gridSize * 12) { coveredByTransit = true; break; } }
+            const trainScale = typeof AOE_PROPS !== 'undefined' ? (AOE_PROPS['trainStation'].baseRadius * (window.GLOBAL_AOE_SCALE || 1.0)) : 12;
+            for (const station of trainStations) { 
+                const dist = Math.sqrt(Math.pow(station.x - house.x, 2) + Math.pow(station.y - house.y, 2)); 
+                if (dist <= gridSize * trainScale) { coveredByTransit = true; break; } 
+            }
         }
 
         let limit = (house.level && house.level >= 2) ? 2 : 1; 
@@ -241,7 +252,7 @@ function updateAndDrawCars(ctx) {
 
     for (let i = cars.length - 1; i >= 0; i--) {
         const car = cars[i];
-        
+
         // --- 1. Waiting Timer Logic ---
         if (car.waitTimer > 0) { 
             car.waitTimer--; 
@@ -278,7 +289,7 @@ function updateAndDrawCars(ctx) {
                 } else if (car.state === 'at_stop' && car.type === 'bus') {
                     const startNode = { x: Math.floor(car.realX/gridSize)*gridSize, y: Math.floor(car.realY/gridSize)*gridSize };
                     const nextPath = getRoutedPath(startNode, car.target);
-                    if (nextPath) { car.path = nextPath; car.pathIndex = 0; car.progress = 0; car.state = 'driving_route'; } else { car.waitTimer = 60; } 
+                    if (nextPath) { car.path = nextPath; car.pathIndex = 0; car.progress = 0; car.state = 'driving_route'; } else { car.waitTimer = 30 + Math.floor(Math.random() * 60); } 
                 } 
                 else if (car.state === 'unloading') {
                     if (car.target && car.target.type === 'supermarket') {
@@ -299,6 +310,13 @@ function updateAndDrawCars(ctx) {
 
         // --- 2. Idle State Check ---
         if (car.state === 'at_home' || car.state === 'at_work' || car.state === 'at_stop' || car.state === 'at_shop') { car.currentSpeed = 0; car.stuckTimer = 0; continue; }
+
+        // --- STRANDED STATE ---
+        if (car.state === 'stranded') {
+            car.currentSpeed = 0;
+            drawCarShape(ctx, car, nightMode);
+            continue; 
+        }
 
         // --- 3. Driving & Movement Logic ---
         if (car.path && car.pathIndex < car.path.length - 1) {
@@ -438,7 +456,7 @@ function updateAndDrawCars(ctx) {
             else if (car.state === 'driving_shop') { car.state = 'at_shop'; car.waitTimer = 180; } 
             else if (car.state === 'driving_home') { car.state = 'at_home'; if (typeof handleCarReturnedHome === 'function') handleCarReturnedHome(car.home); }
             
-            // --- NEW: PARK AND RIDE ARRIVAL ---
+            // --- PARK AND RIDE ARRIVAL ---
             else if (car.state === 'driving_station') { 
                 if (typeof spawnPassengers === 'function' && car.target) {
                     let startX = car.target.driveway ? car.target.driveway.x + gridSize/2 : car.realX;
@@ -527,5 +545,49 @@ function drawCarShape(ctx, car, nightMode) {
     if (nightMode && !isPolice && !isAmbulance && !isFiretruck && !isSwat && !isGetaway) { ctx.fillStyle = 'rgba(255, 255, 150, 0.9)'; ctx.fillRect(carWidth/2 - 2, -carHeight/2 + 2, 3, 3); ctx.fillRect(carWidth/2 - 2, carHeight/2 - 5, 3, 3); }
     if (nightMode && isGetaway) { ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'; ctx.fillRect(carWidth/2 - 2, -carHeight/2 + 2, 3, 3); ctx.fillRect(carWidth/2 - 2, carHeight/2 - 5, 3, 3); }
     
+    // Hazard lights for stranded cars
+    if (car.state === 'stranded') {
+        const time = Date.now(); 
+        if (time % 1000 < 500) { 
+            ctx.fillStyle = '#f1c40f'; 
+            ctx.fillRect(carWidth/2 - 2, -carHeight/2 - 2, 4, 4); 
+            ctx.fillRect(carWidth/2 - 2, carHeight/2 - 2, 4, 4); 
+            ctx.fillRect(-carWidth/2 - 2, -carHeight/2 - 2, 4, 4); 
+            ctx.fillRect(-carWidth/2 - 2, carHeight/2 - 2, 4, 4); 
+        }
+    }
+    
+    // Restore canvas rotation so the bubble doesn't draw upside down!
     ctx.restore();
+
+    // --- STRANDED WARNING BUBBLE ---
+    if (car.state === 'stranded') {
+        const time = Date.now();
+        
+        // Blink timer: Visible for 600ms, hidden for 200ms
+        if (time % 800 < 600) { 
+            // Smooth bobbing up and down math
+            const bob = Math.sin(time / 150) * 3;
+            
+            ctx.save();
+            // Position it floating directly above the car
+            ctx.translate(car.realX, car.realY - (gridSize * 0.6) + bob);
+            
+            // Draw a cartoonish Red Bubble with a pointy tail
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath(); 
+            ctx.arc(0, -4, 9, 0, Math.PI * 2); // Main circle
+            ctx.moveTo(-5, -1); ctx.lineTo(0, 7); ctx.lineTo(5, -1); // Tail pointing down
+            ctx.fill();
+            
+            // Draw the White Exclamation Point inside
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('!', 0, -3);
+            
+            ctx.restore();
+        }
+    }
 }
