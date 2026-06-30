@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<!-- DOMVILLE LOADING SCREEN -->
 <div id="loading-screen">
     <div class="css-city">
         <div class="css-building b1"></div>
@@ -17,16 +16,13 @@
         <div class="css-car"></div>
     </div>
     
-    <h1 class="game-title">DOM<span style="color: #e74c3c;">ville</span>
-    </h1>
-    
+    <h1 class="game-title">DOM<span style="color: #e74c3c;">ville</span></h1>
     <p class="game-subtitle">Mini City Builder</p>
-    
+    <p class="game-version">v4.0: The Nature & Infrastructure Update</p>
     <button id="start-game-btn">Enter City</button>
 </div>
 
 <div id="top-controls">
-    <!-- Rebuild Toggle Switch -->
     <div class="rebuild-container" title="Toggle Rebuild Mode">
         <span style="font-size: 14px; font-weight: bold; color: #fff; margin-right: 8px;">Rebuild</span>
         <label class="switch">
@@ -35,7 +31,6 @@
         </label>
     </div>
 
-    <!-- Demolish Toggle Switch -->
     <div class="demolish-container" title="Toggle Demolish Mode">
         <span style="font-size: 14px; font-weight: bold; color: #fff; margin-right: 8px;">Demolish</span>
         <label class="switch">
@@ -111,32 +106,28 @@
     </div>
 </div>
 
-    <!-- Settings Gear Button (Bottom Right) -->
     <div id="settings-btn" class="settings-gear" title="Settings">⚙️</div>
 
-    <!-- The Settings Modal -->
-    <div id="settings-modal" class="modal hidden">
-        <div class="modal-content settings-content">
-            <h2 style="margin-top: 0;">Settings & Data</h2>
-            
-            <div class="setting-row">
-                <span>Building Outlines</span>
-                <label class="switch"><input type="checkbox" id="outline-toggle" checked><span class="slider round"></span></label>
-            </div>
-            
-            <div class="setting-row">
-                <span>Sound Effects</span>
-                <label class="switch"><input type="checkbox" id="sound-toggle" checked><span class="slider round"></span></label>
-            </div>
-
-            <hr style="border-color: #444; margin: 20px 0;">
-
-            <button id="export-game-btn" class="modal-btn">Export Save Data</button>
-            <button id="import-game-btn" class="modal-btn">Import Save Data</button>
-            <button id="new-game-btn" class="modal-btn danger-btn">Start New City</button>
-            
-            <button id="close-settings-btn" class="modal-btn cancel-btn" style="margin-top: 15px;">Close</button>
+    <div id="settings-panel">
+        <h2>Settings & Data</h2>
+        
+        <div class="setting-row">
+            <span>Building Outlines</span>
+            <label class="switch"><input type="checkbox" id="outline-toggle" checked><span class="slider round"></span></label>
         </div>
+        
+        <div class="setting-row">
+            <span>Sound Effects</span>
+            <label class="switch"><input type="checkbox" id="sound-toggle" checked><span class="slider round"></span></label>
+        </div>
+
+        <hr style="border-color: rgba(255,255,255,0.1); margin: 20px 0;">
+
+        <button id="export-game-btn" class="modal-btn">Export Save Data</button>
+        <button id="import-game-btn" class="modal-btn">Import Save Data</button>
+        <button id="new-game-btn" class="modal-btn danger-btn">Start New City</button>
+        
+        <button id="close-settings-btn" class="modal-btn cancel-btn" style="margin-top: 15px;">Close</button>
     </div>
     
     <canvas id="gameCanvas"></canvas>
